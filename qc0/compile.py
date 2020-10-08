@@ -18,6 +18,7 @@ from .op import (
     PipeExpr,
     Expr,
     ExprPipe,
+    ExprAggregatePipe,
     ExprRecord,
     ExprColumn,
 )
@@ -68,8 +69,9 @@ class From(Struct):
 
 def realize_select(pipe):
     value, from_obj = pipe
-    assert isinstance(from_obj, From)
-    if value is None:
+    if from_obj is None:
+        return select([value.label("value")])
+    elif value is None:
         return from_obj.current.select()
     else:
         return select([value.label("value")], from_obj=from_obj.current)
@@ -127,6 +129,13 @@ def expr_to_sql(expr: Expr, from_obj=None):
 def ExprPipe_to_sql(op: ExprPipe, from_obj=None):
     value, from_obj = pipe_to_sql(op.pipe, from_obj=from_obj)
     return value, from_obj
+
+
+@expr_to_sql.register
+def ExprAggregatePipe_to_sql(op: ExprAggregatePipe, from_obj=None):
+    value, inner_from_obj = pipe_to_sql(op.pipe, from_obj=from_obj)
+    value = func.json_agg(value)
+    return realize_select((value, inner_from_obj)).label('query'), from_obj
 
 
 @expr_to_sql.register

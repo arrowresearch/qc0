@@ -1,6 +1,6 @@
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
-from qc import q, bind, compile
+from qc0 import q, bind, compile
 
 engine = create_engine("postgresql://")
 meta = MetaData()
@@ -99,10 +99,44 @@ def test_select_nav_select_nav_select():
     )
 
 
-def test_select_select_nav():
-    assert run(q.select(region_name=q.region.name), print_op=True) == n(
+def test_select_select_nav_one():
+    assert run(q.select(region_names=q.region.name), print_op=True) == n(
         """
-        SELECT json_build_object('region', json_build_object('name', region.name)) AS value
-        FROM nation AS nation JOIN region AS region ON region.id = nation.region_id
+        SELECT json_build_object('region_names', (SELECT json_agg(region.name) AS value
+        FROM region AS region)) AS value
+        """
+    )
+
+
+def test_select_select_nav_nav():
+    assert run(
+        q.select(region_names=q.nation.region.name), print_op=True
+    ) == n(
+        """
+        SELECT json_build_object('region_names', (SELECT json_agg(region.name) AS value
+        FROM nation AS nation JOIN region AS region ON region.id = nation.region_id)) AS value
+        """
+    )
+
+
+def test_select_select_multiple():
+    assert run(
+        q.select(nation_names=q.nation.name, region_names=q.region.name),
+        print_op=True,
+    ) == n(
+        """
+        SELECT json_build_object('nation_names', (SELECT json_agg(nation.name) AS value
+        FROM nation AS nation), 'region_names', (SELECT json_agg(region.name) AS value
+        FROM region AS region)) AS value
+        """
+    )
+
+
+def test_back_nav():
+    assert run(
+        q.region.nation,
+        print_op=True,
+    ) == n(
+        """
         """
     )

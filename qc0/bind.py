@@ -1,5 +1,6 @@
 from __future__ import annotations
 from functools import singledispatch
+from enum import IntEnum
 from typing import Dict
 from sqlalchemy import MetaData, Table
 from .base import Struct
@@ -13,6 +14,7 @@ from .op import (
     PipeParent,
     PipeExpr,
     ExprPipe,
+    ExprAggregatePipe,
     ExprRecord,
     ExprColumn,
     Field,
@@ -21,13 +23,26 @@ from .op import (
 
 def bind(syn: Syn, meta: MetaData):
     """ Bind syntax to metadata and produce a pipeline of operations."""
-    ctx = Context(scope=UnivScope(tables=meta.tables))
+    ctx = Context(scope=UnivScope(tables=meta.tables), card=Cardinality.ONE)
     op, _ctx = to_op(syn, ctx=ctx, parent=None)
     return op
 
 
 class Context(Struct):
     scope: Scope
+    card: Cardinality
+
+
+class Cardinality(IntEnum):
+    ONE = 1
+    SEQ = 2
+
+    def __mul__(self, o: Cardinality):
+        assert isinstance(o, Cardinality)
+        if self >= o:
+            return self
+        else:
+            return 0
 
 
 class Scope(Struct):
@@ -58,7 +73,7 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
     if isinstance(ctx.scope, UnivScope):
         table = ctx.scope.tables[syn.name]
-        ctx = ctx.replace(scope=TableScope(table=table))
+        ctx = ctx.replace(scope=TableScope(table=table), card=Cardinality.SEQ)
         return PipeTable(table=table), ctx
 
     elif isinstance(ctx.scope, TableScope):
@@ -67,7 +82,9 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
         if syn.name in table.columns:
             column = table.columns[syn.name]
-            ctx = ctx.replace(scope=EmptyScope())
+            ctx = ctx.replace(
+                scope=EmptyScope(), card=ctx.card * Cardinality.ONE
+            )
             if isinstance(parent, PipeParent):
                 return ExprColumn(column=column), ctx
             else:
@@ -75,7 +92,10 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
         elif syn.name in fks:
             fk = fks[syn.name]
-            ctx = ctx.replace(scope=TableScope(table=fk.column.table))
+            ctx = ctx.replace(
+                scope=TableScope(table=fk.column.table),
+                card=ctx.card * Cardinality.ONE,
+            )
             return PipeJoin(pipe=parent, fk=fk), ctx
 
         else:
@@ -96,11 +116,18 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
 
     fields = {}
     for field in syn.fields.values():
-        expr, _ = to_op(field.syn, ctx=ctx, parent=PipeParent())
+        expr, ectx = to_op(
+            field.syn,
+            ctx=ctx.replace(card=Cardinality.ONE),
+            parent=PipeParent(),
+        )
         if isinstance(expr, Pipe):
             # TODO(andreypopp): here we need to check for cardinality and wrap
             # into ExprAggregatePipe if it's a seq one.
-            expr = ExprPipe(pipe=expr)
+            if ectx.card == Cardinality.SEQ:
+                expr = ExprAggregatePipe(pipe=expr)
+            else:
+                expr = ExprPipe(pipe=expr)
         fields[field.name] = Field(expr=expr, name=field.name)
 
     if parent:
