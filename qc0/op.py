@@ -32,6 +32,11 @@ class PipeJoin(Pipe):
     fk: ForeignKey
 
 
+class PipeRevJoin(Pipe):
+    pipe: Pipe
+    fk: ForeignKey
+
+
 class PipeColumn(Pipe):
     pipe: Pipe
     column: Column

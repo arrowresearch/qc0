@@ -11,6 +11,7 @@ from .op import (
     PipeTable,
     PipeColumn,
     PipeJoin,
+    PipeRevJoin,
     PipeParent,
     PipeExpr,
     ExprPipe,
@@ -42,7 +43,7 @@ class Cardinality(IntEnum):
         if self >= o:
             return self
         else:
-            return 0
+            return o
 
 
 class Scope(Struct):
@@ -54,6 +55,7 @@ class UnivScope(Scope):
 
 
 class TableScope(Scope):
+    tables: Dict[str, Table]
     table: Table
 
 
@@ -73,12 +75,22 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
     if isinstance(ctx.scope, UnivScope):
         table = ctx.scope.tables[syn.name]
-        ctx = ctx.replace(scope=TableScope(table=table), card=Cardinality.SEQ)
+        ctx = ctx.replace(
+            scope=TableScope(table=table, tables=ctx.scope.tables),
+            card=Cardinality.SEQ,
+        )
         return PipeTable(table=table), ctx
 
     elif isinstance(ctx.scope, TableScope):
+        tables = ctx.scope.tables
         table = ctx.scope.table
-        fks = {f.column.table.name: f for f in table.foreign_keys}
+        fks = {fk.column.table.name: fk for fk in table.foreign_keys}
+        rev_fks = {
+            fk.parent.table.name: fk
+            for t in tables.values()
+            for fk in t.foreign_keys
+            if fk.column.table == table
+        }
 
         if syn.name in table.columns:
             column = table.columns[syn.name]
@@ -93,14 +105,22 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
         elif syn.name in fks:
             fk = fks[syn.name]
             ctx = ctx.replace(
-                scope=TableScope(table=fk.column.table),
+                scope=TableScope(
+                    table=fk.column.table, tables=ctx.scope.tables
+                ),
                 card=ctx.card * Cardinality.ONE,
             )
             return PipeJoin(pipe=parent, fk=fk), ctx
 
-        else:
-            # TODO(andreypopp): implement lookup for reverse fks
-            raise NotImplementedError()
+        elif syn.name in rev_fks:
+            fk = rev_fks[syn.name]
+            ctx = ctx.replace(
+                scope=TableScope(
+                    table=fk.parent.table, tables=ctx.scope.tables
+                ),
+                card=ctx.card * Cardinality.SEQ,
+            )
+            return PipeRevJoin(pipe=parent, fk=fk), ctx
 
     else:
         raise NotImplementedError()
@@ -122,8 +142,6 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
             parent=PipeParent(),
         )
         if isinstance(expr, Pipe):
-            # TODO(andreypopp): here we need to check for cardinality and wrap
-            # into ExprAggregatePipe if it's a seq one.
             if ectx.card == Cardinality.SEQ:
                 expr = ExprAggregatePipe(pipe=expr)
             else:
