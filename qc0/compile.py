@@ -181,7 +181,7 @@ def PipeFilter_to_sql(pipe: PipeFilter, from_obj, parent):
     expr, from_obj = expr_to_sql(pipe.expr, from_obj, parent=from_obj.parent)
     from_obj = from_obj.replace(right=prev_right)
     sel = (
-        select([from_obj.parent], from_obj=from_obj.current)
+        select([from_obj.right], from_obj=from_obj.current)
         .where(expr)
         .alias()
     )
@@ -199,12 +199,12 @@ def PipeExpr_to_sql(pipe: PipeExpr, from_obj, parent):
     value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
     assert value is None
     # reparent
-    prev_parent = from_obj.parent
+    prev_right = from_obj.right
     from_obj = from_obj.replace(parent=from_obj.right)
     expr, from_obj = expr_to_sql(
         pipe.expr, from_obj=from_obj, parent=from_obj.parent
     )
-    from_obj = from_obj.replace(parent=prev_parent)
+    from_obj = from_obj.replace(right=prev_right)
     return expr, from_obj
 
 
