@@ -9,10 +9,10 @@
 
 from __future__ import annotations
 
+from functools import singledispatch
 from json import dumps as json_dumps
-from collections import Mapping
 from datetime import date
-from typing import Union, List, Optional, Any, get_type_hints
+from typing import Union, List, Optional, Any
 
 import sqlalchemy as sa
 
@@ -81,19 +81,8 @@ class Literal(Syn):
     """
 
     value: Any
-    scope = None
 
-    @classmethod
-    def make(cls, value):
-        impls = cls.__subclasses__()
-        for impl in impls:
-            hints = get_type_hints(impl)
-            impl_type = hints["value"]
-            if getattr(impl_type, "__origin__", None) is Union:
-                impl_type = impl_type.__args__
-            if isinstance(value, impl_type):
-                return impl(value)
-        assert False, f"Unable to embed value of type {type(value)} into query"
+    scope = None
 
     @classmethod
     def embed(cls, value):
@@ -204,8 +193,39 @@ class Q:
 q = Q(None)
 
 
-def literal(value):
-    return Q(Literal.make(value))
+@singledispatch
+def literal(v):
+    raise NotImplementedError(f"unable to use {type(v)} as literal query")
+
+
+@literal.register
+def int_literal(v: int):
+    return Q(IntegerLiteral(v))
+
+
+@literal.register
+def str_literal(v: str):
+    return Q(StringLiteral(v))
+
+
+@literal.register
+def bool_literal(v: bool):
+    return Q(BooleanLiteral(v))
+
+
+@literal.register
+def dict_literal(v: dict):
+    return Q(JsonLiteral(v))
+
+
+@literal.register
+def list_literal(v: list):
+    return Q(JsonLiteral(v))
+
+
+@literal.register
+def date_literal(v: date):
+    return Q(DateLiteral(v))
 
 
 def json_literal(value):
