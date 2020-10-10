@@ -1,3 +1,4 @@
+from typing import Dict
 from functools import singledispatch
 from sqlalchemy import (
     func,
@@ -42,6 +43,7 @@ def compile(op):
 
 
 class From(Struct):
+    joins: Dict[any, Selectable]
     parent: Selectable
     current: Selectable
     right: Selectable
@@ -56,33 +58,46 @@ class From(Struct):
         else:
             condition = true()
         current = join(self.current, right, condition)
-        return From(parent=self.parent, current=current, right=right)
+        joins = self.joins
+        return From(
+            parent=self.parent, current=current, right=right, joins=joins
+        )
 
-    def join_parent(self, from_obj, condition=None):
+    def join_parent(self, from_obj, join_on):
+        # NOTE(andreypopp): this is a hacky way to dedup joins, need to consider
+        # another approach based on structural query equality...
+        key = (self.parent.element, from_obj, join_on)
+        if key in self.joins:
+            return self.replace(right=self.joins[key])
         right = from_obj.alias()
-        if condition is not None:
-            condition = condition(self.parent, right)
-        else:
-            condition = true()
+        condition = (
+            self.parent.columns[join_on[0]] == right.columns[join_on[1]]
+        )
         current = join(self.current, right, condition)
-        return From(parent=self.parent, current=current, right=right)
+        joins = {**self.joins, key: right}
+        return From(
+            parent=self.parent, current=current, right=right, joins=joins
+        )
 
     def join_lateral(self, right):
         condition = true()
         right = right.lateral()
         current = outerjoin(self.current, right, condition)
-        return From(parent=self.parent, current=current, right=right)
+        joins = self.joins
+        return From(
+            parent=self.parent, current=current, right=right, joins=joins
+        )
 
     @classmethod
     def empty(cls):
-        return cls(parent=None, current=None, right=None)
+        return cls(parent=None, current=None, right=None, joins={})
 
     @classmethod
     def make(cls, from_obj):
         assert not isinstance(from_obj, Join)
         current = from_obj
         current = current.alias()
-        return From(parent=current, current=current, right=current)
+        return From(parent=current, current=current, right=current, joins={})
 
 
 def realize_select(pipe):
@@ -128,7 +143,9 @@ def PipeJoin_to_sql(pipe: PipeJoin, from_obj, parent):
         left.columns[pipe.fk.parent.name] == right.columns[pipe.fk.column.name]
     )
     if isinstance(pipe.pipe, PipeParent):
-        from_obj = from_obj.join_parent(table, condition)
+        from_obj = from_obj.join_parent(
+            table, (pipe.fk.parent.name, pipe.fk.column.name)
+        )
     else:
         from_obj = from_obj.join(table, condition)
     return value, from_obj
@@ -181,9 +198,7 @@ def PipeFilter_to_sql(pipe: PipeFilter, from_obj, parent):
     expr, from_obj = expr_to_sql(pipe.expr, from_obj, parent=from_obj.parent)
     from_obj = from_obj.replace(right=prev_right)
     sel = (
-        select([from_obj.right], from_obj=from_obj.current)
-        .where(expr)
-        .alias()
+        select([from_obj.right], from_obj=from_obj.current).where(expr).alias()
     )
     from_obj = From.make(sel)
     return val, from_obj
