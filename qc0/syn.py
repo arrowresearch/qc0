@@ -8,7 +8,9 @@
 """
 
 from __future__ import annotations
+from datetime import date
 from typing import List, Optional, Any, get_type_hints
+import sqlalchemy as sa
 from .base import Struct
 
 
@@ -74,6 +76,7 @@ class Literal(Syn):
     """
 
     value: Any
+    scope = None
 
     @classmethod
     def make(cls, value):
@@ -85,17 +88,39 @@ class Literal(Syn):
                 return impl(value)
         assert False, f"Unable to embed value of type {type(value)} into query"
 
+    @classmethod
+    def embed(cls, value):
+        raise NotImplementedError()
+
 
 class StringLiteral(Literal):
     value: str
+    embed = staticmethod(sa.literal)
 
 
 class IntegerLiteral(Literal):
     value: int
+    embed = staticmethod(sa.literal)
 
 
 class BooleanLiteral(Literal):
     value: bool
+    embed = staticmethod(sa.literal)
+
+
+class DateLiteral(Literal):
+    value: date
+
+    scope = {
+        "year": lambda v: sa.extract("year", v),
+        "month": lambda v: sa.extract("month", v),
+        "day": lambda v: sa.extract("day", v),
+    }
+
+    @staticmethod
+    def embed(v):
+        v = v.strftime("%Y-%m-%d")
+        return sa.cast(sa.literal(v), sa.Date)
 
 
 class Q:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 from functools import singledispatch
 from enum import IntEnum
-from typing import Dict
-from sqlalchemy import MetaData, Table
+from typing import Dict, Any, Callable
+import sqlalchemy as sa
 from .base import Struct
-from .syn import Syn, Nav, Select, Apply, Literal
+from .syn import Syn, Nav, Select, Apply, Literal, DateLiteral
 from .op import (
     Op,
     Pipe,
@@ -22,11 +22,12 @@ from .op import (
     ExprColumn,
     ExprConst,
     ExprBinOp,
+    ExprTransform,
     Field,
 )
 
 
-def bind(syn: Syn, meta: MetaData):
+def bind(syn: Syn, meta: sa.MetaData):
     """ Bind syntax to metadata and produce a pipeline of operations."""
     ctx = Context(scope=UnivScope(tables=meta.tables), card=Cardinality.ONE)
     op, _ctx = to_op(syn, ctx=ctx, parent=None)
@@ -55,12 +56,16 @@ class Scope(Struct):
 
 
 class UnivScope(Scope):
-    tables: Dict[str, Table]
+    tables: Dict[str, sa.Table]
 
 
 class TableScope(Scope):
-    tables: Dict[str, Table]
-    table: Table
+    tables: Dict[str, sa.Table]
+    table: sa.Table
+
+
+class SyntheticScope(Scope):
+    names: Dict[str, Callable[Any, Any]]
 
 
 class EmptyScope(Scope):
@@ -98,8 +103,13 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
         if syn.name in table.columns:
             column = table.columns[syn.name]
+            # TODO(andreypopp): need to orgranize proper type registry
+            if isinstance(column.type, sa.Date):
+                next_scope = SyntheticScope(DateLiteral.scope)
+            else:
+                next_scope = EmptyScope()
             ctx = ctx.replace(
-                scope=EmptyScope(), card=ctx.card * Cardinality.ONE
+                scope=next_scope, card=ctx.card * Cardinality.ONE
             )
             if isinstance(parent, PipeParent):
                 return ExprColumn(column=column), ctx
@@ -128,6 +138,14 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
         else:
             assert False, f"Unable to lookup {syn.name}"
 
+    elif isinstance(ctx.scope, SyntheticScope):
+        next_scope = EmptyScope()
+        transform = ctx.scope.names.get(syn.name)
+        assert transform is not None, f"Unable to lookup {syn.name}"
+        if isinstance(parent, Pipe):
+            parent = ExprPipe(pipe=parent)
+        op = ExprTransform(expr=parent, transform=transform)
+        return op, ctx.replace(scope=next_scope)
     else:
         raise NotImplementedError()
 
@@ -164,7 +182,7 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
 
 @to_op.register
 def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
-    if syn.name in {"count", "exists"}:
+    if syn.name in {"count", "exists", "sum"}:
         assert (
             len(syn.args) == 1
         ), f"{syn.name}(...): expected a single argument"
@@ -214,5 +232,9 @@ def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
 
 @to_op.register
 def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
-    ctx = ctx.replace(scope=EmptyScope())
-    return ExprConst(syn.value), ctx
+    if syn.scope is None:
+        next_scope = EmptyScope()
+    else:
+        next_scope = SyntheticScope(syn.scope)
+    ctx = ctx.replace(scope=next_scope)
+    return ExprConst(syn.value, embed=syn.embed), ctx

@@ -27,6 +27,7 @@ from .op import (
     ExprColumn,
     ExprConst,
     ExprBinOp,
+    ExprTransform,
 )
 
 
@@ -240,7 +241,13 @@ def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
 
 @expr_to_sql.register
 def ExprConst_to_sql(op: ExprConst, from_obj, parent):
-    return literal(op.value), from_obj
+    return op.embed(op.value), from_obj
+
+
+@expr_to_sql.register
+def ExprTransform_to_sql(op: ExprTransform, from_obj, parent):
+    expr, from_obj = expr_to_sql(op.expr, from_obj, parent)
+    return op.transform(expr), from_obj
 
 
 @expr_to_sql.register

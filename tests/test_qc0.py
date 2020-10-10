@@ -1,4 +1,5 @@
 import pytest
+from datetime import date
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
 from qc0 import q, literal, bind, compile
@@ -477,5 +478,30 @@ def test_add_columns():
         """
         SELECT jsonb_build_object('full_name', nation_1.name || ' IN ' || region_1.name) AS value
         FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        """
+    )
+
+
+def test_date_literal():
+    assert run(literal(date(2020, 1, 2))) == n(
+        """
+        SELECT CAST('2020-01-02' AS DATE) AS value
+        """
+    )
+
+
+def test_date_nav():
+    assert run(literal(date(2020, 1, 2)).year) == n(
+        """
+        SELECT EXTRACT(year FROM CAST('2020-01-02' AS DATE)) AS value
+        """
+    )
+
+
+def test_date_column_nav():
+    assert run(q.order.orderdate.year) == n(
+        """
+        SELECT EXTRACT(year FROM order_1.orderdate) AS value
+        FROM "order" AS order_1
         """
     )

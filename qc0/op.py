@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Callable
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct
 
@@ -84,6 +84,12 @@ class ExprAggregatePipe(Expr):
 
 class ExprConst(Expr):
     value: Any
+    embed: Callable[Any, Any]
+
+
+class ExprTransform(Expr):
+    expr: Expr
+    transform: Callable[Any, Any]
 
 
 class ExprBinOp(Expr):
