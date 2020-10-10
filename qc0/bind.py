@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from functools import singledispatch
 from enum import IntEnum
-from typing import Dict
+from typing import Dict, Tuple, Callable, Any
 import sqlalchemy as sa
 from .base import Struct
 from .syn import (
@@ -52,10 +52,7 @@ class Cardinality(IntEnum):
 
     def __mul__(self, o: Cardinality):
         assert isinstance(o, Cardinality)
-        if self >= o:
-            return self
-        else:
-            return o
+        return self if self >= o else o
 
 
 class Scope(Struct):
@@ -71,8 +68,12 @@ class TableScope(Scope):
     table: sa.Table
 
 
+class RecordScope(Scope):
+    fields: Dict[str, Syn]
+
+
 class SyntheticScope(Scope):
-    def lookup(self, name):
+    def lookup(self, name) -> Tuple[Scope, Callable[Any, Any]]:
         raise NotImplementedError()
 
 
@@ -97,6 +98,7 @@ class EmptyScope(Scope):
 
 @singledispatch
 def to_op(syn: Syn, ctx: Context, parent):
+    """ Produce an operation out of a query."""
     raise NotImplementedError(type(syn))
 
 
@@ -158,6 +160,13 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
         else:
             assert False, f"Unable to lookup {syn.name}"
 
+    elif isinstance(ctx.scope, RecordScope):
+        if syn.name in ctx.scope.fields:
+            field_syn, field_ctx, field_parent = ctx.scope.fields[syn.name]
+            return to_op(field_syn, ctx=field_ctx, parent=field_parent)
+        else:
+            assert False, f"Unable to lookup {syn.name}"
+
     elif isinstance(ctx.scope, SyntheticScope):
         next_scope, transform = ctx.scope.lookup(syn.name)
         assert transform is not None, f"Unable to lookup {syn.name}"
@@ -178,6 +187,7 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
     )
 
     fields = {}
+    scope_fields = {}
     for field in syn.fields.values():
         expr, ectx = to_op(
             field.syn,
@@ -190,6 +200,9 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
             else:
                 expr = ExprPipe(pipe=expr)
         fields[field.name] = Field(expr=expr, name=field.name)
+        scope_fields[field.name] = field.syn, ctx, parent
+
+    ctx = ctx.replace(scope=RecordScope(fields=scope_fields))
 
     if parent:
         pipe = PipeExpr(pipe=parent, expr=ExprRecord(fields=fields))
@@ -267,6 +280,7 @@ def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
 
 @singledispatch
 def embed(v: sa.Type):
+    """ Describe how to make a query out of a value."""
     raise NotImplementedError(
         f"don't know how to embed value of type {type(v)} into query"
     )
@@ -301,6 +315,7 @@ def JsonLiteral_embed(_: sa.dialects.postgresql.JSONB):
 
 @singledispatch
 def type_scope(_: sa.Type):
+    """ Describe scope for a specified type."""
     return EmptyScope()
 
 

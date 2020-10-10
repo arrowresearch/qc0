@@ -147,6 +147,24 @@ def test_select_select_multiple():
     )
 
 
+def test_select_nav_select_nav_column():
+    assert run(q.region.select(region_name=q.name).region_name) == n(
+        """
+        SELECT region_1.name AS value
+        FROM region AS region_1
+        """
+    )
+
+
+def test_select_nav_select_nav_table():
+    assert run(q.region.select(n=q.nation).n.name) == n(
+        """
+        SELECT nation_1.name AS value
+        FROM region AS region_1 JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
+        """
+    )
+
+
 def test_back_nav_region_nation_end():
     assert run(q.region.nation, print_op=True,) == n(
         """
