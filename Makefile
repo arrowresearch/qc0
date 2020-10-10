@@ -11,3 +11,6 @@ up down:
 
 test:
 	@pytest
+
+fmt:
+	@black qc0/ tests/

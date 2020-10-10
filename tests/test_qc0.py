@@ -1,4 +1,3 @@
-import pytest
 from datetime import date
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData

@@ -21,7 +21,7 @@ class Struct(metaclass=StructMeta):
 
 def Struct_representer(dumper, self):
     fields = {}
-    for k in getattr(self.__class__, '__annotations__', []):
+    for k in getattr(self.__class__, "__annotations__", []):
         v = getattr(self, k)
         if isinstance(v, Struct):
             v = v
