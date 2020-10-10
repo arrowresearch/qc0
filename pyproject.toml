@@ -8,6 +8,7 @@ addopts = "-p no:warnings"
 name = "qc0"
 version = "0.1.0"
 description = ""
+license = "MIT"
 authors = ["Andrey Popp <me@andreypopp.com>"]
 
 [tool.poetry.dependencies]
