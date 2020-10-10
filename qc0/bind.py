@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from functools import singledispatch
 from enum import IntEnum
-from typing import Dict, Tuple, Callable, Any
+from typing import Dict, Tuple, Callable, Any, Union
 import sqlalchemy as sa
 from .base import Struct
 from .syn import (
@@ -313,8 +313,8 @@ def JsonLiteral_embed(_: sa.dialects.postgresql.JSONB):
 
 
 @singledispatch
-def type_scope(_: sa.Type):
-    """ Describe scope for a specified type."""
+def type_scope(_: sa.Type) -> Union[Scope, SyntheticScope]:
+    """ Describe scope for a specified type. """
     return EmptyScope()
 
 
