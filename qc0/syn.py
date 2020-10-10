@@ -8,9 +8,14 @@
 """
 
 from __future__ import annotations
+
+from json import dumps as json_dumps
+from collections import Mapping
 from datetime import date
-from typing import List, Optional, Any, get_type_hints
+from typing import Union, List, Optional, Any, get_type_hints
+
 import sqlalchemy as sa
+
 from .base import Struct
 
 
@@ -84,6 +89,8 @@ class Literal(Syn):
         for impl in impls:
             hints = get_type_hints(impl)
             impl_type = hints["value"]
+            if getattr(impl_type, "__origin__", None) is Union:
+                impl_type = impl_type.__args__
             if isinstance(value, impl_type):
                 return impl(value)
         assert False, f"Unable to embed value of type {type(value)} into query"
@@ -112,15 +119,31 @@ class DateLiteral(Literal):
     value: date
 
     scope = {
-        "year": lambda v: sa.extract("year", v),
-        "month": lambda v: sa.extract("month", v),
-        "day": lambda v: sa.extract("day", v),
+        "year": (None, (lambda v: sa.extract("year", v))),
+        "month": (None, (lambda v: sa.extract("month", v))),
+        "day": (None, (lambda v: sa.extract("day", v))),
     }
 
     @staticmethod
     def embed(v):
         v = v.strftime("%Y-%m-%d")
         return sa.cast(sa.literal(v), sa.Date)
+
+
+class JsonScope:
+    def __getitem__(self, key):
+        return self, lambda v: v[key]
+
+
+class JsonLiteral(Literal):
+    value: Union[dict, list]
+
+    scope = JsonScope()
+
+    @staticmethod
+    def embed(v):
+        v = json_dumps(v)
+        return sa.cast(sa.literal(v), sa.dialects.postgresql.JSONB)
 
 
 class Q:
@@ -183,3 +206,7 @@ q = Q(None)
 
 def literal(value):
     return Q(Literal.make(value))
+
+
+def json_literal(value):
+    return Q(JsonLiteral(value))

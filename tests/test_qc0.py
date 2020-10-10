@@ -530,7 +530,7 @@ def test_date_literal():
     )
 
 
-def test_date_nav():
+def test_date_literal_nav():
     assert run(literal(date(2020, 1, 2)).year) == n(
         """
         SELECT EXTRACT(year FROM CAST('2020-01-02' AS DATE)) AS value
@@ -543,5 +543,29 @@ def test_date_column_nav():
         """
         SELECT EXTRACT(year FROM order_1.orderdate) AS value
         FROM "order" AS order_1
+        """
+    )
+
+
+def test_json_literal():
+    assert run(literal({"hello": ["world"]})) == n(
+        """
+        SELECT CAST('{"hello": ["world"]}' AS JSONB) AS value
+        """
+    )
+
+
+def test_json_literal_nav():
+    assert run(literal({"hello": ["world"]}).hello) == n(
+        """
+        SELECT CAST('{"hello": ["world"]}' AS JSONB) -> 'hello' AS value
+        """
+    )
+
+
+def test_json_literal_nested_nav():
+    assert run(literal({"hello": {"world": "YES"}}).hello.world) == n(
+        """
+        SELECT (CAST('{"hello": {"world": "YES"}}' AS JSONB) -> 'hello') -> 'world' AS value
         """
     )

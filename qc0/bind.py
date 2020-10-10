@@ -139,8 +139,11 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
             assert False, f"Unable to lookup {syn.name}"
 
     elif isinstance(ctx.scope, SyntheticScope):
-        next_scope = EmptyScope()
-        transform = ctx.scope.names.get(syn.name)
+        next_names, transform = ctx.scope.names[syn.name]
+        if next_names is None:
+            next_scope = EmptyScope()
+        else:
+            next_scope = SyntheticScope(names=next_names)
         assert transform is not None, f"Unable to lookup {syn.name}"
         if isinstance(parent, Pipe):
             parent = ExprPipe(pipe=parent)
