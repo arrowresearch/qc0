@@ -58,6 +58,15 @@ class From(Struct):
         current = join(self.current, right, condition)
         return From(parent=self.parent, current=current, right=right)
 
+    def join_parent(self, from_obj, condition=None):
+        right = from_obj.alias()
+        if condition is not None:
+            condition = condition(self.parent, right)
+        else:
+            condition = true()
+        current = join(self.current, right, condition)
+        return From(parent=self.parent, current=current, right=right)
+
     def join_lateral(self, right):
         condition = true()
         right = right.lateral()
@@ -118,7 +127,11 @@ def PipeJoin_to_sql(pipe: PipeJoin, from_obj, parent):
     condition = lambda left, right: (
         left.columns[pipe.fk.parent.name] == right.columns[pipe.fk.column.name]
     )
-    return value, from_obj.join(table, condition)
+    if isinstance(pipe.pipe, PipeParent):
+        from_obj = from_obj.join_parent(table, condition)
+    else:
+        from_obj = from_obj.join(table, condition)
+    return value, from_obj
 
 
 @pipe_to_sql.register

@@ -86,18 +86,18 @@ def test_select_nav_select_nav_only():
     )
 
 
-@pytest.mark.xfail
 def test_select_nav_select_nav_multi():
     assert run(
         q.nation.select(
             name=q.name,
             region_name=q.region.name,
             region_comment=q.region.comment,
-        )
+        ),
+        print_op=True
     ) == n(
         """
-        SELECT jsonb_build_object('name', nation.name, 'region_name', region.name, 'region_comment', region.comment) AS value
-        FROM nation AS nation JOIN region AS region ON region.id = nation.region_id
+        SELECT jsonb_build_object('name', nation_1.name, 'region_name', region_1.name, 'region_comment', region_2.comment) AS value
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id JOIN region AS region_2 ON nation_1.region_id = region_2.id
         """
     )
 
