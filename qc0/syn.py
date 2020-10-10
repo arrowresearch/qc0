@@ -10,10 +10,10 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from json import dumps as json_dumps
 from datetime import date
-from typing import Union, List, Optional, Any
+from typing import List, Optional, Any
 
+from sqlalchemy.dialects import postgresql as sa_pg
 import sqlalchemy as sa
 
 from .base import Struct
@@ -81,58 +81,7 @@ class Literal(Syn):
     """
 
     value: Any
-
-    scope = None
-
-    @classmethod
-    def embed(cls, value):
-        raise NotImplementedError()
-
-
-class StringLiteral(Literal):
-    value: str
-    embed = staticmethod(sa.literal)
-
-
-class IntegerLiteral(Literal):
-    value: int
-    embed = staticmethod(sa.literal)
-
-
-class BooleanLiteral(Literal):
-    value: bool
-    embed = staticmethod(sa.literal)
-
-
-class DateLiteral(Literal):
-    value: date
-
-    scope = {
-        "year": (None, (lambda v: sa.extract("year", v))),
-        "month": (None, (lambda v: sa.extract("month", v))),
-        "day": (None, (lambda v: sa.extract("day", v))),
-    }
-
-    @staticmethod
-    def embed(v):
-        v = v.strftime("%Y-%m-%d")
-        return sa.cast(sa.literal(v), sa.Date)
-
-
-class JsonScope:
-    def __getitem__(self, key):
-        return self, lambda v: v[key]
-
-
-class JsonLiteral(Literal):
-    value: Union[dict, list]
-
-    scope = JsonScope()
-
-    @staticmethod
-    def embed(v):
-        v = json_dumps(v)
-        return sa.cast(sa.literal(v), sa.dialects.postgresql.JSONB)
+    type: sa.Type
 
 
 class Q:
@@ -200,33 +149,33 @@ def literal(v):
 
 @literal.register
 def int_literal(v: int):
-    return Q(IntegerLiteral(v))
+    return Q(Literal(value=v, type=sa.Integer()))
 
 
 @literal.register
 def str_literal(v: str):
-    return Q(StringLiteral(v))
+    return Q(Literal(value=v, type=sa.String()))
 
 
 @literal.register
 def bool_literal(v: bool):
-    return Q(BooleanLiteral(v))
+    return Q(Literal(value=v, type=sa.Boolean()))
 
 
 @literal.register
 def dict_literal(v: dict):
-    return Q(JsonLiteral(v))
+    return Q(Literal(value=v, type=sa_pg.JSONB()))
 
 
 @literal.register
 def list_literal(v: list):
-    return Q(JsonLiteral(v))
+    return Q(Literal(value=v, type=sa_pg.JSONB()))
 
 
 @literal.register
 def date_literal(v: date):
-    return Q(DateLiteral(v))
+    return Q(Literal(value=v, type=sa.Date()))
 
 
-def json_literal(value):
-    return Q(JsonLiteral(value))
+def json_literal(v):
+    return Q(Literal(value=v, type=sa_pg.JSONB()))

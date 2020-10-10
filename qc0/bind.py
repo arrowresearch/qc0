@@ -1,10 +1,17 @@
 from __future__ import annotations
+import json
 from functools import singledispatch
 from enum import IntEnum
-from typing import Dict, Any, Callable
+from typing import Dict
 import sqlalchemy as sa
 from .base import Struct
-from .syn import Syn, Nav, Select, Apply, Literal, DateLiteral
+from .syn import (
+    Syn,
+    Nav,
+    Select,
+    Apply,
+    Literal,
+)
 from .op import (
     Op,
     Pipe,
@@ -65,7 +72,23 @@ class TableScope(Scope):
 
 
 class SyntheticScope(Scope):
-    names: Dict[str, Callable[Any, Any]]
+    def lookup(self, name):
+        raise NotImplementedError()
+
+
+class JsonScope(SyntheticScope):
+    def lookup(self, name):
+        return self, lambda v: v[name]
+
+
+class DateScope(SyntheticScope):
+    def lookup(self, name):
+        names = {
+            "year": lambda v: sa.extract("year", v),
+            "month": lambda v: sa.extract("month", v),
+            "day": lambda v: sa.extract("day", v),
+        }
+        return EmptyScope(), names[name]
 
 
 class EmptyScope(Scope):
@@ -104,10 +127,7 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
         if syn.name in table.columns:
             column = table.columns[syn.name]
             # TODO(andreypopp): need to orgranize proper type registry
-            if isinstance(column.type, sa.Date):
-                next_scope = SyntheticScope(DateLiteral.scope)
-            else:
-                next_scope = EmptyScope()
+            next_scope = type_scope(column.type)
             ctx = ctx.replace(
                 scope=next_scope, card=ctx.card * Cardinality.ONE
             )
@@ -139,11 +159,7 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
             assert False, f"Unable to lookup {syn.name}"
 
     elif isinstance(ctx.scope, SyntheticScope):
-        next_names, transform = ctx.scope.names[syn.name]
-        if next_names is None:
-            next_scope = EmptyScope()
-        else:
-            next_scope = SyntheticScope(names=next_names)
+        next_scope, transform = ctx.scope.lookup(syn.name)
         assert transform is not None, f"Unable to lookup {syn.name}"
         if isinstance(parent, Pipe):
             parent = ExprPipe(pipe=parent)
@@ -244,9 +260,55 @@ def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
 
 @to_op.register
 def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
-    if syn.scope is None:
-        next_scope = EmptyScope()
-    else:
-        next_scope = SyntheticScope(syn.scope)
+    next_scope = type_scope(syn.type)
     ctx = ctx.replace(scope=next_scope)
-    return ExprConst(syn.value, embed=syn.embed), ctx
+    return ExprConst(value=syn.value, embed=embed(syn.type)), ctx
+
+
+@singledispatch
+def embed(v: sa.Type):
+    raise NotImplementedError(
+        f"don't know how to embed value of type {type(v)} into query"
+    )
+
+
+@embed.register
+def StringLiteral_embed(_: sa.String):
+    return lambda v: sa.literal(v)
+
+
+@embed.register
+def IntegerLiteral_embed(_: sa.Integer):
+    return lambda v: sa.literal(v)
+
+
+@embed.register
+def BooleanLiteral_embed(_: sa.Boolean):
+    return lambda v: sa.literal(v)
+
+
+@embed.register
+def DateLiteral_embed(_: sa.Date):
+    return lambda v: sa.cast(sa.literal(v.strftime("%Y-%m-%d")), sa.Date)
+
+
+@embed.register
+def JsonLiteral_embed(_: sa.dialects.postgresql.JSONB):
+    return lambda v: sa.cast(
+        sa.literal(json.dumps(v)), sa.dialects.postgresql.JSONB
+    )
+
+
+@singledispatch
+def type_scope(_: sa.Type):
+    return EmptyScope()
+
+
+@type_scope.register
+def Date_scalar_scope(_: sa.Date):
+    return DateScope()
+
+
+@type_scope.register
+def Json_scalar_scope(_: sa.dialects.postgresql.JSONB):
+    return JsonScope()
