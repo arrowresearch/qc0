@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Dict
 from sqlalchemy import MetaData, Table
 from .base import Struct
-from .syn import Syn, Nav, Select
+from .syn import Syn, Nav, Select, Apply, Literal
 from .op import (
     Op,
     Pipe,
@@ -14,10 +14,14 @@ from .op import (
     PipeRevJoin,
     PipeParent,
     PipeExpr,
+    PipeTake,
+    PipeFilter,
     ExprPipe,
     ExprAggregatePipe,
     ExprRecord,
     ExprColumn,
+    ExprConst,
+    ExprBinOp,
     Field,
 )
 
@@ -121,6 +125,8 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
                 card=ctx.card * Cardinality.SEQ,
             )
             return PipeRevJoin(pipe=parent, fk=fk), ctx
+        else:
+            assert False, f"Unable to lookup {syn.name}"
 
     else:
         raise NotImplementedError()
@@ -143,7 +149,7 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
         )
         if isinstance(expr, Pipe):
             if ectx.card == Cardinality.SEQ:
-                expr = ExprAggregatePipe(pipe=expr)
+                expr = ExprAggregatePipe(pipe=expr, func=None)
             else:
                 expr = ExprPipe(pipe=expr)
         fields[field.name] = Field(expr=expr, name=field.name)
@@ -154,3 +160,59 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
     else:
         expr = ExprRecord(fields=fields)
         return expr, ctx
+
+
+@to_op.register
+def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
+    if syn.name in {"count", "exists"}:
+        assert (
+            len(syn.args) == 1
+        ), f"{syn.name}(...): expected a single argument"
+        arg = syn.args[0]
+        op, ctx = to_op(arg, ctx, parent)
+        assert isinstance(op, Pipe), f"{syn.name}(...): requires a pipe"
+        assert (
+            ctx.card >= Cardinality.SEQ
+        ), "{syn.name}(...): expected a sequence of items"
+        op = ExprAggregatePipe(pipe=op, func=syn.name)
+        return op, ctx
+    elif syn.name == "take":
+        assert len(syn.args) == 2, "take(...): expected exactly two arguments"
+        arg, take = syn.args
+        op, ctx = to_op(arg, ctx, parent)
+        assert isinstance(op, Pipe), "take(...): requires a pipe"
+        op = PipeTake(pipe=op, take=take)
+        return op, ctx
+    elif syn.name in {"__eq__", "__ne__", "__add__"}:
+        assert (
+            len(syn.args) == 2
+        ), f"{syn.name}(...): expected exactly two arguments"
+        a, b = syn.args
+        a, actx = to_op(a, ctx, parent)
+        if isinstance(a, Pipe):
+            a = ExprPipe(a)
+        b, bctx = to_op(b, ctx, parent)
+        if isinstance(b, Pipe):
+            b = ExprPipe(b)
+        op = ExprBinOp(func=syn.name, a=a, b=b)
+        return op, ctx
+    elif syn.name == "filter":
+        assert (
+            len(syn.args) == 2
+        ), "filter(...): expected exactly two arguments"
+        arg, expr = syn.args
+        op, ctx = to_op(arg, ctx, parent)
+        assert isinstance(op, Pipe), "filter(...): requires a pipe"
+        expr, _ctx = to_op(expr, ctx, parent=PipeParent())
+        if isinstance(expr, Pipe):
+            expr = ExprPipe(expr)
+        op = PipeFilter(pipe=op, expr=expr)
+        return op, ctx
+    else:
+        assert False, f"Unknown {syn.name}(...) combinator"
+
+
+@to_op.register
+def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
+    ctx = ctx.replace(scope=EmptyScope())
+    return ExprConst(syn.value), ctx

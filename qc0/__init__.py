@@ -1,10 +1,10 @@
-from .syn import q
+from .syn import q, literal
 from .bind import bind
 from .compile import compile
 
 __version__ = "0.1.0"
 
-__all__ = ("parse", "q", "bind", "compile")
+__all__ = ("parse", "q", "bind", "compile", "literal")
 
 
 def parse(q):

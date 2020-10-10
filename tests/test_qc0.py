@@ -1,6 +1,7 @@
+import pytest
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
-from qc0 import q, bind, compile
+from qc0 import q, literal, bind, compile
 
 engine = create_engine("postgresql://")
 meta = MetaData()
@@ -84,19 +85,20 @@ def test_select_nav_select_nav_only():
     )
 
 
-# def test_select_nav_select_nav_multi():
-#     assert run(
-#         q.nation.select(
-#             name=q.name,
-#             region_name=q.region.name,
-#             region_comment=q.region.comment,
-#         )
-#     ) == n(
-#         """
-#         SELECT jsonb_build_object('name', nation.name, 'region_name', region.name, 'region_comment', region.comment) AS value
-#         FROM nation AS nation JOIN region AS region ON region.id = nation.region_id
-#         """
-#     )
+@pytest.mark.xfail
+def test_select_nav_select_nav_multi():
+    assert run(
+        q.nation.select(
+            name=q.name,
+            region_name=q.region.name,
+            region_comment=q.region.comment,
+        )
+    ) == n(
+        """
+        SELECT jsonb_build_object('name', nation.name, 'region_name', region.name, 'region_comment', region.comment) AS value
+        FROM nation AS nation JOIN region AS region ON region.id = nation.region_id
+        """
+    )
 
 
 def test_select_nav_select_nav_select():
@@ -205,5 +207,275 @@ def test_select_back_nav_nested_end():
         FROM (SELECT customer_1.id AS id, customer_1.name AS name, customer_1.address AS address, customer_1.nation_id AS nation_id, customer_1.phone AS phone, customer_1.acctbal AS acctbal, customer_1.mktsegment AS mktsegment, customer_1.comment AS comment
         FROM customer AS customer_1
         WHERE customer_1.nation_id = anon_2.id) AS anon_4) AS anon_3 ON true) AS anon_1 ON true
+        """
+    )
+
+
+def test_count_region_end():
+    assert run(q.region.count()) == n(
+        """
+        SELECT anon_1.value AS value
+        FROM (SELECT count(*) AS value
+        FROM region AS region_1) AS anon_1
+        """
+    )
+
+
+def test_count_nation_region_end():
+    assert run(q.nation.region.count()) == n(
+        """
+        SELECT anon_1.value AS value
+        FROM (SELECT count(*) AS value
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id) AS anon_1
+        """
+    )
+
+
+def test_count_region_select_nation_count_end():
+    assert run(q.region.select(nation_count=q.nation.count())) == n(
+        """
+        SELECT jsonb_build_object('nation_count', anon_1.value) AS value
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT count(*) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON true
+        """
+    )
+
+
+def test_take_region():
+    assert run(q.region.take(2)) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        LIMIT 2) AS anon_1
+        """
+    )
+
+
+def test_take_region_nation():
+    assert run(q.region.nation.take(2)) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.region_id, anon_1.comment
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM region AS region_1 JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
+        LIMIT 2) AS anon_1
+        """
+    )
+
+
+def test_take_region_x_nation():
+    assert run(q.region.take(2).nation) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment, nation_1.id, nation_1.name, nation_1.region_id, nation_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        LIMIT 2) AS anon_1 JOIN nation AS nation_1 ON anon_1.id = nation_1.region_id
+        """
+    )
+
+
+def test_filter_region_name():
+    assert run(q.region.filter(q.name), print_op=True) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE region_1.name) AS anon_1
+        """
+    )
+
+
+def test_literal_string():
+    assert run(literal("Hello"), print_op=True) == n(
+        """
+        SELECT 'Hello' AS value
+        """
+    )
+
+
+def test_literal_integer():
+    assert run(literal(42), print_op=True) == n(
+        """
+        SELECT 42 AS value
+        """
+    )
+
+
+def test_literal_boolean():
+    assert run(literal(True), print_op=True) == n(
+        """
+        SELECT true AS value
+        """
+    )
+
+
+def test_filter_region_true():
+    assert run(q.region.filter(literal(False)), print_op=True) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE false) AS anon_1
+        """
+    )
+
+
+def test_filter_region_by_name_end():
+    assert run(
+        q.region.filter(q.name == literal("AFRICA")), print_op=True
+    ) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_region_by_name_then_nav_end():
+    assert run(
+        q.region.filter(q.name == literal("AFRICA")).name, print_op=True
+    ) == n(
+        """
+        SELECT anon_1.name AS value
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_region_by_name_then_select_end():
+    assert run(
+        q.region.filter(q.name == literal("AFRICA")).select(
+            name=q.name, nation_names=q.nation.name
+        ),
+        print_op=True,
+    ) == n(
+        """
+        SELECT jsonb_build_object('name', anon_1.name, 'nation_names', anon_2.value) AS value
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA') AS anon_1 LEFT OUTER JOIN LATERAL (SELECT jsonb_agg(anon_3.name) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = anon_1.id) AS anon_3) AS anon_2 ON true
+        """
+    )
+
+
+def test_filter_nation_by_region_name_end():
+    assert run(
+        q.nation.filter(q.region.name == literal("AFRICA")),
+        print_op=True,
+    ) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.region_id, anon_1.comment
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_nation_by_region_name_then_nav_column_end():
+    assert run(
+        q.nation.filter(q.region.name == literal("AFRICA")).name,
+        print_op=True,
+    ) == n(
+        """
+        SELECT anon_1.name AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_customer_by_region_name_then_nav_column_end():
+    assert run(
+        q.customer.filter(q.nation.region.name == literal("AFRICA")).name,
+        print_op=True,
+    ) == n(
+        """
+        SELECT anon_1.name AS value
+        FROM (SELECT customer_1.id AS id, customer_1.name AS name, customer_1.address AS address, customer_1.nation_id AS nation_id, customer_1.phone AS phone, customer_1.acctbal AS acctbal, customer_1.mktsegment AS mktsegment, customer_1.comment AS comment
+        FROM customer AS customer_1 JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_customer_by_region_name_then_count_end():
+    assert run(
+        q.customer.filter(q.nation.region.name == literal("AFRICA")).count(),
+        print_op=True,
+    ) == n(
+        """
+        SELECT anon_1.value AS value
+        FROM (SELECT count(*) AS value
+        FROM (SELECT customer_1.id AS id, customer_1.name AS name, customer_1.address AS address, customer_1.nation_id AS nation_id, customer_1.phone AS phone, customer_1.acctbal AS acctbal, customer_1.mktsegment AS mktsegment, customer_1.comment AS comment
+        FROM customer AS customer_1 JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA') AS anon_2) AS anon_1
+        """
+    )
+
+
+def test_filter_customer_nation_by_region_name_then_nav_column_end():
+    assert run(
+        q.customer.nation.filter(q.region.name == literal("AFRICA")).name,
+        print_op=True,
+    ) == n(
+        """
+        SELECT anon_1.name AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM customer AS customer_1 JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+
+
+def test_filter_region_by_nation_count():
+    assert run(
+        q.region.filter(q.nation.count() == literal(5)), print_op=True
+    ) == n(
+        """
+        SELECT anon_1.id, anon_1.name, anon_1.comment
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT count(*) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_3) AS anon_2 ON true
+        WHERE anon_2.value = 5) AS anon_1
+        """
+    )
+
+
+def test_add_string_literals():
+    assert run(literal("Hello, ") + literal("World!")) == n(
+        """
+        SELECT 'Hello, ' || 'World!' AS value
+        """
+    )
+
+
+def test_add_integer_literals():
+    assert run(literal(40) + literal(2)) == n(
+        """
+        SELECT 40 + 2 AS value
+        """
+    )
+
+
+def test_add_columns():
+    assert run(
+        q.nation.select(full_name=q.name + literal(" IN ") + q.region.name)
+    ) == n(
+        """
+        SELECT jsonb_build_object('full_name', nation_1.name || ' IN ' || region_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
         """
     )

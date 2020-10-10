@@ -7,7 +7,6 @@ from sqlalchemy import (
     outerjoin,
     select,
     true,
-    text,
 )
 from sqlalchemy.sql.selectable import Selectable, Join
 from .base import Struct
@@ -19,11 +18,15 @@ from .op import (
     PipeRevJoin,
     PipeParent,
     PipeExpr,
+    PipeTake,
+    PipeFilter,
     Expr,
     ExprPipe,
     ExprAggregatePipe,
     ExprRecord,
     ExprColumn,
+    ExprConst,
+    ExprBinOp,
 )
 
 
@@ -86,7 +89,7 @@ def realize_select(pipe):
 
 @singledispatch
 def pipe_to_sql(pipe: Pipe, from_obj, parent):
-    raise NotImplementedError(type(pipe))
+    raise NotImplementedError(f"pipe_to_sql({type(pipe).__name__})")
 
 
 @pipe_to_sql.register
@@ -96,7 +99,12 @@ def PipeTable_to_sql(pipe: PipeTable, from_obj, parent):
 
 @pipe_to_sql.register
 def PipeColumn_to_sql(pipe: PipeColumn, from_obj, parent):
-    value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
+    if pipe.pipe is not None:
+        value, from_obj = pipe_to_sql(
+            pipe.pipe, from_obj=from_obj, parent=parent
+        )
+    else:
+        value, from_obj = None, from_obj
     assert value is None
     assert from_obj is not None
     return from_obj.right.columns[pipe.column.name], from_obj
@@ -139,6 +147,35 @@ def PipeRevJoin_to_sql(pipe: PipeRevJoin, from_obj, parent):
 
 
 @pipe_to_sql.register
+def PipeTake_to_sql(pipe: PipeTake, from_obj, parent):
+    val, from_obj = pipe_to_sql(pipe.pipe, from_obj, parent)
+    sel = (
+        select([from_obj.right], from_obj=from_obj.current)
+        .limit(pipe.take)
+        .alias()
+    )
+    from_obj = From.make(sel)
+    return val, from_obj
+
+
+@pipe_to_sql.register
+def PipeFilter_to_sql(pipe: PipeFilter, from_obj, parent):
+    val, from_obj = pipe_to_sql(pipe.pipe, from_obj, parent)
+    # reparent
+    prev_right = from_obj.right
+    from_obj = from_obj.replace(parent=from_obj.right)
+    expr, from_obj = expr_to_sql(pipe.expr, from_obj, parent=from_obj.parent)
+    from_obj = from_obj.replace(right=prev_right)
+    sel = (
+        select([from_obj.parent], from_obj=from_obj.current)
+        .where(expr)
+        .alias()
+    )
+    from_obj = From.make(sel)
+    return val, from_obj
+
+
+@pipe_to_sql.register
 def PipeParent_to_sql(pipe: PipeParent, from_obj, parent):
     return None, from_obj
 
@@ -159,7 +196,7 @@ def PipeExpr_to_sql(pipe: PipeExpr, from_obj, parent):
 
 @singledispatch
 def expr_to_sql(expr: Expr, from_obj, parent):
-    raise NotImplementedError(type(expr))
+    raise NotImplementedError(f"expr_to_sql({type(expr).__name__})")
 
 
 @expr_to_sql.register
@@ -171,7 +208,10 @@ def ExprPipe_to_sql(op: ExprPipe, from_obj, parent):
 @expr_to_sql.register
 def ExprAggregatePipe_to_sql(op: ExprAggregatePipe, from_obj, parent):
     value, inner_from_obj = pipe_to_sql(op.pipe, from_obj=None, parent=parent)
-    value = func.jsonb_agg(value).label("value")
+    if op.func is None:
+        value = func.jsonb_agg(value).label("value")
+    else:
+        value = getattr(func, op.func)(value).label("value")
     sel = realize_select((value, inner_from_obj))
     if parent is not None:
         from_obj = from_obj.join_lateral(sel)
@@ -196,3 +236,22 @@ def ExprRecord_to_sql(op: ExprRecord, from_obj, parent):
 def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
     assert from_obj is not None
     return column(op.column.name, _selectable=from_obj.parent), from_obj
+
+
+@expr_to_sql.register
+def ExprConst_to_sql(op: ExprConst, from_obj, parent):
+    return literal(op.value), from_obj
+
+
+@expr_to_sql.register
+def ExprBinOp_to_sql(op: ExprBinOp, from_obj, parent):
+    a, from_obj = expr_to_sql(op.a, from_obj, parent)
+    b, from_obj = expr_to_sql(op.b, from_obj, parent)
+    if op.func == "__eq__":
+        return a == b, from_obj
+    if op.func == "__ne__":
+        return a != b, from_obj
+    if op.func == "__add__":
+        return a + b, from_obj
+    else:
+        assert False, f"unknown operation {op.func}"

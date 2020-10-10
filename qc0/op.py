@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import List
+from typing import List, Optional, Any
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct
 
@@ -51,6 +51,16 @@ class PipeExpr(Pipe):
     expr: Expr
 
 
+class PipeTake(Pipe):
+    pipe: Pipe
+    take: int
+
+
+class PipeFilter(Pipe):
+    pipe: Pipe
+    expr: Expr
+
+
 class Expr(Op):
     """ Base class for ops which expr a new value."""
 
@@ -69,6 +79,17 @@ class ExprPipe(Expr):
 
 class ExprAggregatePipe(Expr):
     pipe: Pipe
+    func: Optional[str]
+
+
+class ExprConst(Expr):
+    value: Any
+
+
+class ExprBinOp(Expr):
+    func: str
+    a: Expr
+    b: Expr
 
 
 class Field(Struct):
