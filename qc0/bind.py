@@ -128,7 +128,6 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
 
         if syn.name in table.columns:
             column = table.columns[syn.name]
-            # TODO(andreypopp): need to orgranize proper type registry
             next_scope = type_scope(column.type)
             ctx = ctx.replace(
                 scope=next_scope, card=ctx.card * Cardinality.ONE
