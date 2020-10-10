@@ -67,6 +67,36 @@ def test_nav_customer_nation_region_name():
     )
 
 
+def test_compose_nation_name():
+    assert run(q.nation >> q.name) == n(
+        """
+        SELECT nation_1.name AS value
+        FROM nation AS nation_1
+        """
+    )
+
+
+def test_compose_nation_region_name():
+    assert run(q.nation >> q.region >> q.name) == n(
+        """
+        SELECT region_1.name AS value
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        """
+    )
+
+
+def test_compose_nation_select():
+    assert run(
+        q.nation >> q.select(nation_name=q.name, region_name=q.region.name),
+        print_op=True
+    ) == n(
+        """
+        SELECT jsonb_build_object('nation_name', nation_1.name, 'region_name', region_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        """
+    )
+
+
 def test_select_nav_select():
     assert run(q.nation.select(name=q.name, comment=q.comment)) == n(
         """

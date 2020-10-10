@@ -8,6 +8,7 @@ from .base import Struct
 from .syn import (
     Syn,
     Nav,
+    Compose,
     Select,
     Apply,
     Literal,
@@ -182,7 +183,7 @@ def Select_to_op(syn: Select, ctx: Context, parent: Op):
     parent, ctx = (
         to_op(syn.parent, ctx=ctx, parent=parent)
         if syn.parent
-        else (None, ctx)
+        else (parent, ctx)
     )
 
     fields = {}
@@ -275,6 +276,13 @@ def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
     next_scope = type_scope(syn.type)
     ctx = ctx.replace(scope=next_scope)
     return ExprConst(value=syn.value, embed=embed(syn.type)), ctx
+
+
+@to_op.register
+def Compose_to_op(syn: Compose, ctx: Context, parent: Op):
+    op, ctx = to_op(syn.a, ctx, parent)
+    op, ctx = to_op(syn.b, ctx, parent=op)
+    return op, ctx
 
 
 @singledispatch

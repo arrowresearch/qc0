@@ -77,11 +77,23 @@ class Apply(Syn):
 
 class Literal(Syn):
     """
-    Represent literal values
+    Represent literal values.
     """
 
     value: Any
     type: sa.Type
+
+
+class Compose(Syn):
+    """
+    Composition of two queries:
+
+        Q1.Q1
+
+    """
+
+    a: Syn
+    b: Syn
 
 
 class Q:
@@ -130,6 +142,10 @@ class Q:
     def __or__(self, o: Q):
         assert isinstance(o, Q)
         return Q(Apply(name="__or__", args=(self.syn, o.syn)))
+
+    def __rshift__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Compose(a=self.syn, b=o.syn))
 
     def __call__(self, *args):
         assert isinstance(self.syn, Nav)
