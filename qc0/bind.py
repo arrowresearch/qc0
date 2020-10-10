@@ -201,7 +201,16 @@ def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
         assert isinstance(op, Pipe), "take(...): requires a pipe"
         op = PipeTake(pipe=op, take=take)
         return op, ctx
-    elif syn.name in {"__eq__", "__ne__", "__add__"}:
+    elif syn.name in {
+        "__eq__",
+        "__ne__",
+        "__add__",
+        "__sub__",
+        "__mul__",
+        "__truediv__",
+        "__and__",
+        "__or__",
+    }:
         assert (
             len(syn.args) == 2
         ), f"{syn.name}(...): expected exactly two arguments"

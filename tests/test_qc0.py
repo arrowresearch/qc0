@@ -482,6 +482,46 @@ def test_add_columns():
     )
 
 
+def test_sub_integer_literals():
+    assert run(literal(44) - literal(2)) == n(
+        """
+        SELECT 44 - 2 AS value
+        """
+    )
+
+
+def test_mul_integer_literals():
+    assert run(literal(22) * literal(2)) == n(
+        """
+        SELECT 22 * 2 AS value
+        """
+    )
+
+
+def test_truediv_integer_literals():
+    assert run(literal(88) / literal(2)) == n(
+        """
+        SELECT 88 / 2 AS value
+        """
+    )
+
+
+def test_and_literals():
+    assert run(literal(True) & literal(False)) == n(
+        """
+        SELECT true AND false AS value
+        """
+    )
+
+
+def test_or_literals():
+    assert run(literal(True) | literal(False)) == n(
+        """
+        SELECT true OR false AS value
+        """
+    )
+
+
 def test_date_literal():
     assert run(literal(date(2020, 1, 2))) == n(
         """

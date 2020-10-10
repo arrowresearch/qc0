@@ -150,6 +150,26 @@ class Q:
         assert isinstance(o, Q)
         return Q(Apply(name="__add__", args=(self.syn, o.syn)))
 
+    def __sub__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Apply(name="__sub__", args=(self.syn, o.syn)))
+
+    def __mul__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Apply(name="__mul__", args=(self.syn, o.syn)))
+
+    def __truediv__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Apply(name="__truediv__", args=(self.syn, o.syn)))
+
+    def __and__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Apply(name="__and__", args=(self.syn, o.syn)))
+
+    def __or__(self, o: Q):
+        assert isinstance(o, Q)
+        return Q(Apply(name="__or__", args=(self.syn, o.syn)))
+
     def __call__(self, *args):
         assert isinstance(self.syn, Nav)
         args = tuple(arg.syn if isinstance(arg, Q) else arg for arg in args)

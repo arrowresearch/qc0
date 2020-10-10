@@ -260,5 +260,15 @@ def ExprBinOp_to_sql(op: ExprBinOp, from_obj, parent):
         return a != b, from_obj
     if op.func == "__add__":
         return a + b, from_obj
+    if op.func == "__sub__":
+        return a - b, from_obj
+    if op.func == "__mul__":
+        return a * b, from_obj
+    if op.func == "__truediv__":
+        return a / b, from_obj
+    if op.func == "__and__":
+        return a & b, from_obj
+    if op.func == "__or__":
+        return a | b, from_obj
     else:
         assert False, f"unknown operation {op.func}"
