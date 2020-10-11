@@ -13,7 +13,7 @@ Trying it out
 -------------
 
 There's `qc0-shell` executable provided which gives an interactive Python shell
-with a Query Combinators EDSL configured to query a PostgreSQL TPC-H database.
+with Query Combinators EDSL configured to query PostgreSQL TPC-H database.
 
 Start interactive shell with:
 
