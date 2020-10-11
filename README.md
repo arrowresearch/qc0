@@ -68,4 +68,46 @@ This desugars into:
 
     COMB(QUERY_ARG, QUERY_EXTRA_ARG...)
 
+Python EDSL API
+---------------
+
+There's `q` object provided which one can use to build queries by accessing its
+attributes and calling its methods. Below is a description on how to produce
+syntax constructs (described above) using `q`.
+
+Navigation:
+
+    q.name
+
+As `q` implements "Builder Pattern" one can use build queries out of previously
+built queries. For example to navigate to `region` and then to `name` looks
+naturally like:
+
+    q.region.name
+
+Another syntax for composition enables to compose two queries built
+independently:
+
+    q.region >> q.name
+
+To apply a query combinator one does:
+
+    q.count(q.region)
+
+Alternatively a query combinator can be used as a method (in this case it
+receives the left hand side query as its first argument):
+
+    q.region.count()
+
+Another example with `select` combinator:
+
+    q.region.select(name=q.name, nation_names=q.nation.name)
+
+To produce queries out of Python value one does:
+
+    q.lit(42)
+    q.lit("Hello")
+    q.lit(True)
+    q.lit({"some": ["json"]})
+
 [qc]: https://querycombinators.org/
