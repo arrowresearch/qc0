@@ -6,8 +6,12 @@ init:
 	@w psql -1 -f ./db.sql
 	@w commit
 
-up down:
+up:
 	@w up
+	@w service postgresql start
+
+down:
+	@w down
 
 test:
 	@pytest
