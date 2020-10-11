@@ -105,9 +105,9 @@ Another example with `select` combinator:
 
 To produce queries out of Python value one does:
 
-    q.lit(42)
-    q.lit("Hello")
-    q.lit(True)
-    q.lit({"some": ["json"]})
+    q.val(42)
+    q.val("Hello")
+    q.val(True)
+    q.val({"some": ["json"]})
 
 [qc]: https://querycombinators.org/
