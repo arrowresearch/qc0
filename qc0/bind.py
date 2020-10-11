@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from functools import singledispatch
 from enum import IntEnum
-from typing import Dict, Tuple, Callable, Any, Union
+from typing import Dict, Tuple, Callable, Any, Union, Optional
 import sqlalchemy as sa
 from .base import Struct
 from .syn import (
@@ -36,15 +36,24 @@ from .op import (
 
 
 def bind(syn: Syn, meta: sa.MetaData):
-    """ Bind syntax to metadata and produce a pipeline of operations."""
-    ctx = Context(scope=UnivScope(tables=meta.tables), card=Cardinality.ONE)
-    op, _ctx = to_op(syn, ctx=ctx, parent=None)
-    return op
+    """ Bind syntax to database catalogue and produce a pipeline of operations."""
+    ctx = to_op(syn, ctx=BindingContext.initial(meta))
+    assert ctx.op is not None
+    return ctx.op
 
 
-class Context(Struct):
+class BindingContext(Struct):
     scope: Scope
     card: Cardinality
+    op: Optional[Op]
+
+    @classmethod
+    def initial(cls, meta: sa.MetaData) -> BindingContext:
+        return cls(
+            scope=UnivScope(tables=meta.tables),
+            card=Cardinality.ONE,
+            op=None,
+        )
 
 
 class Cardinality(IntEnum):
@@ -98,23 +107,23 @@ class EmptyScope(Scope):
 
 
 @singledispatch
-def to_op(syn: Syn, ctx: Context, parent):
+def to_op(syn: Syn, ctx: BindingContext):
     """ Produce an operation out of a query."""
     raise NotImplementedError(type(syn))
 
 
 @to_op.register
-def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
+def Nav_to_op(syn: Nav, ctx: BindingContext):
     if syn.parent is not None:
-        parent, ctx = to_op(syn.parent, ctx=ctx, parent=parent)
+        ctx = to_op(syn.parent, ctx=ctx)
 
     if isinstance(ctx.scope, UnivScope):
         table = ctx.scope.tables[syn.name]
-        ctx = ctx.replace(
+        return ctx.replace(
             scope=TableScope(table=table, tables=ctx.scope.tables),
             card=Cardinality.SEQ,
+            op=PipeTable(table=table),
         )
-        return PipeTable(table=table), ctx
 
     elif isinstance(ctx.scope, TableScope):
         tables = ctx.scope.tables
@@ -130,109 +139,107 @@ def Nav_to_op(syn: Nav, ctx: Context, parent: Op):
         if syn.name in table.columns:
             column = table.columns[syn.name]
             next_scope = type_scope(column.type)
-            ctx = ctx.replace(
-                scope=next_scope, card=ctx.card * Cardinality.ONE
-            )
-            if isinstance(parent, PipeParent):
-                return ExprColumn(column=column), ctx
+            if isinstance(ctx.op, PipeParent):
+                op = ExprColumn(column=column)
             else:
-                return PipeColumn(pipe=parent, column=column), ctx
+                op = PipeColumn(pipe=ctx.op, column=column)
+            return ctx.replace(
+                scope=next_scope,
+                card=ctx.card * Cardinality.ONE,
+                op=op,
+            )
 
         elif syn.name in fks:
             fk = fks[syn.name]
-            ctx = ctx.replace(
+            return ctx.replace(
                 scope=TableScope(
                     table=fk.column.table, tables=ctx.scope.tables
                 ),
                 card=ctx.card * Cardinality.ONE,
+                op=PipeJoin(pipe=ctx.op, fk=fk),
             )
-            return PipeJoin(pipe=parent, fk=fk), ctx
 
         elif syn.name in rev_fks:
             fk = rev_fks[syn.name]
-            ctx = ctx.replace(
+            return ctx.replace(
                 scope=TableScope(
                     table=fk.parent.table, tables=ctx.scope.tables
                 ),
                 card=ctx.card * Cardinality.SEQ,
+                op=PipeRevJoin(pipe=ctx.op, fk=fk),
             )
-            return PipeRevJoin(pipe=parent, fk=fk), ctx
         else:
             assert False, f"Unable to lookup {syn.name}"
 
     elif isinstance(ctx.scope, RecordScope):
         if syn.name in ctx.scope.fields:
-            field_syn, field_ctx, field_parent = ctx.scope.fields[syn.name]
-            return to_op(field_syn, ctx=field_ctx, parent=field_parent)
+            field_syn, field_ctx = ctx.scope.fields[syn.name]
+            return to_op(field_syn, ctx=field_ctx)
         else:
             assert False, f"Unable to lookup {syn.name}"
 
     elif isinstance(ctx.scope, SyntheticScope):
         next_scope, transform = ctx.scope.lookup(syn.name)
         assert transform is not None, f"Unable to lookup {syn.name}"
-        if isinstance(parent, Pipe):
-            parent = ExprPipe(pipe=parent)
-        op = ExprTransform(expr=parent, transform=transform)
-        return op, ctx.replace(scope=next_scope)
+        op = ctx.op
+        if isinstance(op, Pipe):
+            op = ExprPipe(pipe=op)
+        op = ExprTransform(expr=op, transform=transform)
+        return ctx.replace(scope=next_scope, op=op)
     else:
         raise NotImplementedError()
 
 
 @to_op.register
-def Select_to_op(syn: Select, ctx: Context, parent: Op):
-    parent, ctx = (
-        to_op(syn.parent, ctx=ctx, parent=parent)
-        if syn.parent
-        else (parent, ctx)
-    )
+def Select_to_op(syn: Select, ctx: BindingContext):
+    if syn.parent:
+        ctx = to_op(syn.parent, ctx=ctx)
 
     fields = {}
     scope_fields = {}
     for field in syn.fields.values():
-        expr, ectx = to_op(
+        fctx = to_op(
             field.syn,
-            ctx=ctx.replace(card=Cardinality.ONE),
-            parent=PipeParent(),
+            ctx=ctx.replace(card=Cardinality.ONE, op=PipeParent()),
         )
-        if isinstance(expr, Pipe):
-            if ectx.card == Cardinality.SEQ:
-                expr = ExprAggregatePipe(pipe=expr, func=None)
+        if isinstance(fctx.op, Pipe):
+            if fctx.card == Cardinality.SEQ:
+                op = ExprAggregatePipe(pipe=fctx.op, func=None)
             else:
-                expr = ExprPipe(pipe=expr)
-        fields[field.name] = Field(expr=expr, name=field.name)
-        scope_fields[field.name] = field.syn, ctx, parent
+                op = ExprPipe(pipe=fctx.op)
+            fctx = fctx.replace(op=op)
+        fields[field.name] = Field(expr=fctx.op, name=field.name)
+        scope_fields[field.name] = field.syn, ctx
 
-    ctx = ctx.replace(scope=RecordScope(fields=scope_fields))
-
-    if parent:
-        pipe = PipeExpr(pipe=parent, expr=ExprRecord(fields=fields))
-        return pipe, ctx
+    next_scope = RecordScope(fields=scope_fields)
+    if ctx.op:
+        return ctx.replace(
+            scope=next_scope,
+            op=PipeExpr(pipe=ctx.op, expr=ExprRecord(fields=fields)),
+        )
     else:
-        expr = ExprRecord(fields=fields)
-        return expr, ctx
+        return ctx.replace(op=ExprRecord(fields=fields), scope=next_scope)
 
 
 @to_op.register
-def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
+def Apply_to_op(syn: Apply, ctx: BindingContext):
     if syn.name in {"count", "exists", "sum"}:
         assert (
             len(syn.args) == 1
         ), f"{syn.name}(...): expected a single argument"
         arg = syn.args[0]
-        op, ctx = to_op(arg, ctx, parent)
-        assert isinstance(op, Pipe), f"{syn.name}(...): requires a pipe"
+        ctx = to_op(arg, ctx)
+        assert isinstance(ctx.op, Pipe), f"{syn.name}(...): requires a pipe"
         assert (
             ctx.card >= Cardinality.SEQ
         ), "{syn.name}(...): expected a sequence of items"
-        op = ExprAggregatePipe(pipe=op, func=syn.name)
-        return op, ctx
+        return ctx.replace(op=ExprAggregatePipe(pipe=ctx.op, func=syn.name))
     elif syn.name == "take":
         assert len(syn.args) == 2, "take(...): expected exactly two arguments"
         arg, take = syn.args
-        op, ctx = to_op(arg, ctx, parent)
-        assert isinstance(op, Pipe), "take(...): requires a pipe"
-        op = PipeTake(pipe=op, take=take)
-        return op, ctx
+        ctx = to_op(arg, ctx)
+        assert isinstance(ctx.op, Pipe), "take(...): requires a pipe"
+        return ctx.replace(op=PipeTake(pipe=ctx.op, take=take))
     elif syn.name in {
         "__eq__",
         "__ne__",
@@ -247,42 +254,41 @@ def Apply_to_op(syn: Apply, ctx: Context, parent: Op):
             len(syn.args) == 2
         ), f"{syn.name}(...): expected exactly two arguments"
         a, b = syn.args
-        a, actx = to_op(a, ctx, parent)
-        if isinstance(a, Pipe):
-            a = ExprPipe(a)
-        b, bctx = to_op(b, ctx, parent)
-        if isinstance(b, Pipe):
-            b = ExprPipe(b)
-        op = ExprBinOp(func=syn.name, a=a, b=b)
-        return op, ctx
+        actx = to_op(a, ctx)
+        if isinstance(actx.op, Pipe):
+            actx = actx.replace(op=ExprPipe(actx.op))
+        bctx = to_op(b, ctx)
+        if isinstance(bctx.op, Pipe):
+            bctx = bctx.replace(op=ExprPipe(bctx.op))
+        return ctx.replace(op=ExprBinOp(func=syn.name, a=actx.op, b=bctx.op))
     elif syn.name == "filter":
         assert (
             len(syn.args) == 2
         ), "filter(...): expected exactly two arguments"
         arg, expr = syn.args
-        op, ctx = to_op(arg, ctx, parent)
-        assert isinstance(op, Pipe), "filter(...): requires a pipe"
-        expr, _ctx = to_op(expr, ctx, parent=PipeParent())
-        if isinstance(expr, Pipe):
-            expr = ExprPipe(expr)
-        op = PipeFilter(pipe=op, expr=expr)
-        return op, ctx
+        ctx = to_op(arg, ctx)
+        assert isinstance(ctx.op, Pipe), "filter(...): requires a pipe"
+        ectx = to_op(expr, ctx=ctx.replace(op=PipeParent()))
+        if isinstance(ectx.op, Pipe):
+            ectx = ectx.replace(op=ExprPipe(ectx.op))
+        return ctx.replace(op=PipeFilter(pipe=ctx.op, expr=ectx.op))
     else:
         assert False, f"Unknown {syn.name}(...) combinator"
 
 
 @to_op.register
-def Literal_to_op(syn: Literal, ctx: Context, parent: Op):
-    next_scope = type_scope(syn.type)
-    ctx = ctx.replace(scope=next_scope)
-    return ExprConst(value=syn.value, embed=embed(syn.type)), ctx
+def Literal_to_op(syn: Literal, ctx: BindingContext):
+    return ctx.replace(
+        scope=type_scope(syn.type),
+        op=ExprConst(value=syn.value, embed=embed(syn.type)),
+    )
 
 
 @to_op.register
-def Compose_to_op(syn: Compose, ctx: Context, parent: Op):
-    op, ctx = to_op(syn.a, ctx, parent)
-    op, ctx = to_op(syn.b, ctx, parent=op)
-    return op, ctx
+def Compose_to_op(syn: Compose, ctx: BindingContext):
+    ctx = to_op(syn.a, ctx)
+    ctx = to_op(syn.b, ctx)
+    return ctx
 
 
 @singledispatch
