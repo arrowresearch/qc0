@@ -1,7 +1,7 @@
 init:
 	@w build
 	@w service postgresql start
-	@w link python pip poetry black ipython
+	@w link python pip poetry black ipython qc0-shell
 	@w poetry install
 	@w psql -1 -f ./db.sql
 	@w commit

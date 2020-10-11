@@ -1,7 +1,7 @@
 from datetime import date
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
-from qc0 import q, literal, bind, compile
+from qc0 import q, bind, compile
 
 engine = create_engine("postgresql://")
 meta = MetaData()
@@ -88,7 +88,7 @@ def test_compose_nation_region_name():
 def test_compose_nation_select():
     assert run(
         q.nation >> q.select(nation_name=q.name, region_name=q.region.name),
-        print_op=True
+        print_op=True,
     ) == n(
         """
         SELECT jsonb_build_object('nation_name', nation_1.name, 'region_name', region_1.name) AS value
@@ -336,7 +336,7 @@ def test_filter_region_name():
 
 
 def test_literal_string():
-    assert run(literal("Hello"), print_op=True) == n(
+    assert run(q.val("Hello"), print_op=True) == n(
         """
         SELECT 'Hello' AS value
         """
@@ -344,7 +344,7 @@ def test_literal_string():
 
 
 def test_literal_integer():
-    assert run(literal(42), print_op=True) == n(
+    assert run(q.val(42), print_op=True) == n(
         """
         SELECT 42 AS value
         """
@@ -352,7 +352,7 @@ def test_literal_integer():
 
 
 def test_literal_boolean():
-    assert run(literal(True), print_op=True) == n(
+    assert run(q.val(True), print_op=True) == n(
         """
         SELECT true AS value
         """
@@ -360,7 +360,7 @@ def test_literal_boolean():
 
 
 def test_filter_region_true():
-    assert run(q.region.filter(literal(False)), print_op=True) == n(
+    assert run(q.region.filter(q.val(False)), print_op=True) == n(
         """
         SELECT anon_1.id, anon_1.name, anon_1.comment
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
@@ -372,7 +372,7 @@ def test_filter_region_true():
 
 def test_filter_region_by_name_end():
     assert run(
-        q.region.filter(q.name == literal("AFRICA")), print_op=True
+        q.region.filter(q.name == q.val("AFRICA")), print_op=True
     ) == n(
         """
         SELECT anon_1.id, anon_1.name, anon_1.comment
@@ -385,7 +385,7 @@ def test_filter_region_by_name_end():
 
 def test_filter_region_by_name_then_nav_end():
     assert run(
-        q.region.filter(q.name == literal("AFRICA")).name, print_op=True
+        q.region.filter(q.name == q.val("AFRICA")).name, print_op=True
     ) == n(
         """
         SELECT anon_1.name AS value
@@ -398,7 +398,7 @@ def test_filter_region_by_name_then_nav_end():
 
 def test_filter_region_by_name_then_select_end():
     assert run(
-        q.region.filter(q.name == literal("AFRICA")).select(
+        q.region.filter(q.name == q.val("AFRICA")).select(
             name=q.name, nation_names=q.nation.name
         ),
         print_op=True,
@@ -417,7 +417,7 @@ def test_filter_region_by_name_then_select_end():
 
 def test_filter_nation_by_region_name_end():
     assert run(
-        q.nation.filter(q.region.name == literal("AFRICA")),
+        q.nation.filter(q.region.name == q.val("AFRICA")),
         print_op=True,
     ) == n(
         """
@@ -431,7 +431,7 @@ def test_filter_nation_by_region_name_end():
 
 def test_filter_nation_by_region_name_then_nav_column_end():
     assert run(
-        q.nation.filter(q.region.name == literal("AFRICA")).name,
+        q.nation.filter(q.region.name == q.val("AFRICA")).name,
         print_op=True,
     ) == n(
         """
@@ -445,7 +445,7 @@ def test_filter_nation_by_region_name_then_nav_column_end():
 
 def test_filter_customer_by_region_name_then_nav_column_end():
     assert run(
-        q.customer.filter(q.nation.region.name == literal("AFRICA")).name,
+        q.customer.filter(q.nation.region.name == q.val("AFRICA")).name,
         print_op=True,
     ) == n(
         """
@@ -459,7 +459,7 @@ def test_filter_customer_by_region_name_then_nav_column_end():
 
 def test_filter_customer_by_region_name_then_count_end():
     assert run(
-        q.customer.filter(q.nation.region.name == literal("AFRICA")).count(),
+        q.customer.filter(q.nation.region.name == q.val("AFRICA")).count(),
         print_op=True,
     ) == n(
         """
@@ -474,7 +474,7 @@ def test_filter_customer_by_region_name_then_count_end():
 
 def test_filter_customer_nation_by_region_name_then_nav_column_end():
     assert run(
-        q.customer.nation.filter(q.region.name == literal("AFRICA")).name,
+        q.customer.nation.filter(q.region.name == q.val("AFRICA")).name,
         print_op=True,
     ) == n(
         """
@@ -488,7 +488,7 @@ def test_filter_customer_nation_by_region_name_then_nav_column_end():
 
 def test_filter_region_by_nation_count():
     assert run(
-        q.region.filter(q.nation.count() == literal(5)), print_op=True
+        q.region.filter(q.nation.count() == q.val(5)), print_op=True
     ) == n(
         """
         SELECT anon_1.id, anon_1.name, anon_1.comment
@@ -503,7 +503,7 @@ def test_filter_region_by_nation_count():
 
 
 def test_add_string_literals():
-    assert run(literal("Hello, ") + literal("World!")) == n(
+    assert run(q.val("Hello, ") + q.val("World!")) == n(
         """
         SELECT 'Hello, ' || 'World!' AS value
         """
@@ -511,7 +511,7 @@ def test_add_string_literals():
 
 
 def test_add_integer_literals():
-    assert run(literal(40) + literal(2)) == n(
+    assert run(q.val(40) + q.val(2)) == n(
         """
         SELECT 40 + 2 AS value
         """
@@ -520,7 +520,7 @@ def test_add_integer_literals():
 
 def test_add_columns():
     assert run(
-        q.nation.select(full_name=q.name + literal(" IN ") + q.region.name)
+        q.nation.select(full_name=q.name + q.val(" IN ") + q.region.name)
     ) == n(
         """
         SELECT jsonb_build_object('full_name', nation_1.name || ' IN ' || region_1.name) AS value
@@ -530,7 +530,7 @@ def test_add_columns():
 
 
 def test_sub_integer_literals():
-    assert run(literal(44) - literal(2)) == n(
+    assert run(q.val(44) - q.val(2)) == n(
         """
         SELECT 44 - 2 AS value
         """
@@ -538,7 +538,7 @@ def test_sub_integer_literals():
 
 
 def test_mul_integer_literals():
-    assert run(literal(22) * literal(2)) == n(
+    assert run(q.val(22) * q.val(2)) == n(
         """
         SELECT 22 * 2 AS value
         """
@@ -546,7 +546,7 @@ def test_mul_integer_literals():
 
 
 def test_truediv_integer_literals():
-    assert run(literal(88) / literal(2)) == n(
+    assert run(q.val(88) / q.val(2)) == n(
         """
         SELECT 88 / 2 AS value
         """
@@ -554,7 +554,7 @@ def test_truediv_integer_literals():
 
 
 def test_and_literals():
-    assert run(literal(True) & literal(False)) == n(
+    assert run(q.val(True) & q.val(False)) == n(
         """
         SELECT true AND false AS value
         """
@@ -562,7 +562,7 @@ def test_and_literals():
 
 
 def test_or_literals():
-    assert run(literal(True) | literal(False)) == n(
+    assert run(q.val(True) | q.val(False)) == n(
         """
         SELECT true OR false AS value
         """
@@ -570,7 +570,7 @@ def test_or_literals():
 
 
 def test_date_literal():
-    assert run(literal(date(2020, 1, 2))) == n(
+    assert run(q.val(date(2020, 1, 2))) == n(
         """
         SELECT CAST('2020-01-02' AS DATE) AS value
         """
@@ -578,7 +578,7 @@ def test_date_literal():
 
 
 def test_date_literal_nav():
-    assert run(literal(date(2020, 1, 2)).year) == n(
+    assert run(q.val(date(2020, 1, 2)).year) == n(
         """
         SELECT EXTRACT(year FROM CAST('2020-01-02' AS DATE)) AS value
         """
@@ -595,7 +595,7 @@ def test_date_column_nav():
 
 
 def test_json_literal():
-    assert run(literal({"hello": ["world"]})) == n(
+    assert run(q.val({"hello": ["world"]})) == n(
         """
         SELECT CAST('{"hello": ["world"]}' AS JSONB) AS value
         """
@@ -603,7 +603,7 @@ def test_json_literal():
 
 
 def test_json_literal_nav():
-    assert run(literal({"hello": ["world"]}).hello) == n(
+    assert run(q.val({"hello": ["world"]}).hello) == n(
         """
         SELECT CAST('{"hello": ["world"]}' AS JSONB) -> 'hello' AS value
         """
@@ -611,7 +611,7 @@ def test_json_literal_nav():
 
 
 def test_json_literal_nested_nav():
-    assert run(literal({"hello": {"world": "YES"}}).hello.world) == n(
+    assert run(q.val({"hello": {"world": "YES"}}).hello.world) == n(
         """
         SELECT (CAST('{"hello": {"world": "YES"}}' AS JSONB) -> 'hello') -> 'world' AS value
         """

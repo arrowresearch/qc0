@@ -9,6 +9,23 @@ basic cases.
 
 There's no concrete syntax (yet), the main user interface is a Python API (EDSL)
 
+Interactive Shell
+-----------------
+
+There's `qc0-shell` executable provided which gives an interactive Python shell
+with a Query Combinators EDSL configured to query a PostgreSQL TPC-H database.
+
+Start interactive shell with:
+
+    % qc0-shell
+
+Then run queries with:
+
+    >>> q.region
+    ...   .filter(q.name == q.val('AFRICA'))
+    ...   .select(name=q.name, nations=q.nation.name)
+    ...   .run()
+
 Syntax
 ------
 
