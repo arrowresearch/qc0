@@ -13,6 +13,7 @@ from sqlalchemy.sql.selectable import Selectable, Join
 from .base import Struct
 from .op import (
     Pipe,
+    PipeVoid,
     PipeTable,
     PipeColumn,
     PipeJoin,
@@ -115,6 +116,11 @@ def realize_select(pipe):
 @singledispatch
 def pipe_to_sql(pipe: Pipe, from_obj, parent):
     raise NotImplementedError(f"pipe_to_sql({type(pipe).__name__})")
+
+
+@pipe_to_sql.register
+def PipeVoid_to_sql(pipe: PipeVoid, from_obj, parent):
+    return None, from_obj
 
 
 @pipe_to_sql.register

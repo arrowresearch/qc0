@@ -13,14 +13,27 @@ from __future__ import annotations
 from typing import List, Optional, Any, Callable
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct
+from .scope import Scope, Cardinality
 
 
 class Op(Struct):
     """ Base class for ops."""
 
+    scope: Scope
+    card: Cardinality
+
+    @classmethod
+    def wrap(cls, op: Op, **kw):
+        kw = {"scope": op.scope, "card": op.card, **kw}
+        return cls(**kw)
+
 
 class Pipe(Op):
     """ Base class for ops which query data."""
+
+
+class PipeVoid(Op):
+    pass
 
 
 class PipeTable(Pipe):
