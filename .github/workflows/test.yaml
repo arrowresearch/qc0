@@ -1,0 +1,22 @@
+name: "Test"
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # container:
+    #   image: docker.pkg.github.com/arrowresearch/qc0/env:latest
+    #   options: --cpus 1
+    name: Run Tests
+    steps:
+      - name: Docker login
+        run: docker login docker.pkg.github.com -u $GITHUB_ACTOR -p $GITHUB_TOKEN
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Check out the repo
+        uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+          docker run \
+            -v "${PWD}:${PWD}" -w "${PWD}" \
+            docker.pkg.github.com/arrowresearch/qc0/env:latest \
+            make ci-test

@@ -18,3 +18,9 @@ test:
 
 fmt:
 	@black qc0/ tests/
+
+ci-test:
+	service postgresql start
+	psql -1 -f ./db.sql
+	poetry install
+	pytest
