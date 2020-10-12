@@ -28,19 +28,19 @@ from .syn import (
 )
 from .op import (
     Op,
-    Pipe,
-    PipeVoid,
-    PipeTable,
-    PipeColumn,
-    PipeJoin,
-    PipeRevJoin,
-    PipeParent,
-    PipeExpr,
-    PipeTake,
-    PipeFilter,
+    Rel,
+    RelVoid,
+    RelTable,
+    RelColumn,
+    RelJoin,
+    RelRevJoin,
+    RelParent,
+    RelExpr,
+    RelTake,
+    RelFilter,
     Expr,
-    ExprPipe,
-    ExprAggregatePipe,
+    ExprRel,
+    ExprAggregateRel,
     ExprRecord,
     ExprColumn,
     ExprConst,
@@ -52,7 +52,7 @@ from .op import (
 
 def bind(syn: Syn, meta: sa.MetaData):
     """ Bind syntax to database catalogue and produce a pipeline of operations."""
-    parent = PipeVoid(
+    parent = RelVoid(
         scope=UnivScope(tables=meta.tables),
         card=Cardinality.ONE,
     )
@@ -67,7 +67,7 @@ def build_op(syn: Syn, parent: Op):
 
 def build_record_op(op: Op):
     if isinstance(op.scope, RecordScope):
-        parent = PipeParent(
+        parent = RelParent(
             scope=op.scope.scope,
             card=Cardinality.ONE,
         )
@@ -77,21 +77,21 @@ def build_record_op(op: Op):
                 f.syn,
                 parent,
             )
-            if isinstance(field, Pipe):
+            if isinstance(field, Rel):
                 if field.card == Cardinality.SEQ:
-                    field = ExprAggregatePipe.wrap(
+                    field = ExprAggregateRel.wrap(
                         field,
-                        pipe=field,
+                        rel=field,
                         func=None,
                         card=Cardinality.ONE,
                         scope=EmptyScope(),
                     )
                 else:
-                    field = ExprPipe.wrap(field, pipe=field)
+                    field = ExprRel.wrap(field, rel=field)
             fields[name] = Field(expr=field, name=name)
 
         expr = ExprRecord.wrap(op, fields=fields)
-        return PipeExpr.wrap(op, pipe=op, expr=expr)
+        return RelExpr.wrap(op, rel=op, expr=expr)
     return op
 
 
@@ -111,7 +111,7 @@ def Nav_to_op(syn: Nav, parent: Op):
 
     if isinstance(parent.scope, UnivScope):
         table = parent.scope.tables[syn.name]
-        return PipeTable(
+        return RelTable(
             table=table,
             scope=TableScope(table=table, tables=parent.scope.tables),
             card=Cardinality.SEQ,
@@ -131,15 +131,15 @@ def Nav_to_op(syn: Nav, parent: Op):
         if syn.name in table.columns:
             column = table.columns[syn.name]
             next_scope = type_scope(column.type)
-            if isinstance(parent, PipeParent):
+            if isinstance(parent, RelParent):
                 return ExprColumn(
                     column=column,
                     scope=next_scope,
                     card=parent.card * Cardinality.ONE,
                 )
             else:
-                return PipeColumn(
-                    pipe=parent,
+                return RelColumn(
+                    rel=parent,
                     column=column,
                     scope=next_scope,
                     card=parent.card * Cardinality.ONE,
@@ -147,8 +147,8 @@ def Nav_to_op(syn: Nav, parent: Op):
 
         elif syn.name in fks:
             fk = fks[syn.name]
-            return PipeJoin(
-                pipe=parent,
+            return RelJoin(
+                rel=parent,
                 fk=fk,
                 scope=TableScope(
                     table=fk.column.table, tables=parent.scope.tables
@@ -158,8 +158,8 @@ def Nav_to_op(syn: Nav, parent: Op):
 
         elif syn.name in rev_fks:
             fk = rev_fks[syn.name]
-            return PipeRevJoin(
-                pipe=parent,
+            return RelRevJoin(
+                rel=parent,
                 fk=fk,
                 scope=TableScope(
                     table=fk.parent.table, tables=parent.scope.tables
@@ -184,8 +184,8 @@ def Nav_to_op(syn: Nav, parent: Op):
     elif isinstance(parent.scope, SyntheticScope):
         next_scope, transform = parent.scope.lookup(syn.name)
         assert transform is not None, f"Unable to lookup {syn.name}"
-        if isinstance(parent, Pipe):
-            parent = ExprPipe.wrap(parent, pipe=parent)
+        if isinstance(parent, Rel):
+            parent = ExprRel.wrap(parent, rel=parent)
         return ExprTransform.wrap(
             parent, expr=parent, transform=transform, scope=next_scope
         )
@@ -207,18 +207,18 @@ def Select_to_op(syn: Select, parent: Op):
 def Apply_to_op(syn: Apply, parent: Op):
     if syn.name in {"count", "exists", "sum"}:
         assert len(syn.args) == 0, f"{syn.name}(...): expected no arguments"
-        assert isinstance(parent, Pipe), f"{syn.name}(...): requires a pipe"
+        assert isinstance(parent, Rel), f"{syn.name}(...): requires a rel"
         assert (
             parent.card >= Cardinality.SEQ
         ), "{syn.name}(...): expected a sequence of items"
-        return ExprAggregatePipe.wrap(
-            parent, pipe=parent, func=syn.name, scope=EmptyScope()
+        return ExprAggregateRel.wrap(
+            parent, rel=parent, func=syn.name, scope=EmptyScope()
         )
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
-        assert isinstance(parent, Pipe), "take(...): requires a pipe"
-        return PipeTake.wrap(parent, pipe=parent, take=take)
+        assert isinstance(parent, Rel), "take(...): requires a rel"
+        return RelTake.wrap(parent, rel=parent, take=take)
     elif syn.name in {
         "__eq__",
         "__ne__",
@@ -234,11 +234,11 @@ def Apply_to_op(syn: Apply, parent: Op):
         ), f"{syn.name}(...): expected exactly two arguments"
         a, b = syn.args
         a = to_op(a, parent)
-        if isinstance(a, Pipe):
-            a = ExprPipe.wrap(a, pipe=a)
+        if isinstance(a, Rel):
+            a = ExprRel.wrap(a, rel=a)
         b = to_op(b, parent)
-        if isinstance(b, Pipe):
-            b = ExprPipe.wrap(b, pipe=b)
+        if isinstance(b, Rel):
+            b = ExprRel.wrap(b, rel=b)
         return ExprBinOp.wrap(
             parent,
             func=syn.name,
@@ -249,18 +249,18 @@ def Apply_to_op(syn: Apply, parent: Op):
     elif syn.name == "filter":
         assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]
-        assert isinstance(parent, Pipe), "filter(...): requires a pipe"
+        assert isinstance(parent, Rel), "filter(...): requires a rel"
         expr = to_op(
             expr,
-            PipeParent(
+            RelParent(
                 scope=parent.scope,
                 card=Cardinality.ONE,
             ),
         )
         assert isinstance(expr, Expr)
-        return PipeFilter.wrap(
+        return RelFilter.wrap(
             parent,
-            pipe=parent,
+            rel=parent,
             expr=expr,
             card=parent.card,
         )
@@ -272,12 +272,12 @@ def Apply_to_op(syn: Apply, parent: Op):
 def Literal_to_op(syn: Literal, parent: Op):
     # If the parent is another expression, we just ignore it
     if isinstance(parent, Expr):
-        parent = PipeVoid(
+        parent = RelVoid(
             scope=EmptyScope(),
             card=Cardinality.ONE,
         )
     return ExprConst(
-        pipe=parent,
+        rel=parent,
         value=syn.value,
         embed=embed(syn.type),
         scope=type_scope(syn.type),

@@ -12,19 +12,19 @@ from sqlalchemy import (
 from sqlalchemy.sql.selectable import Selectable, Join
 from .base import Struct
 from .op import (
-    Pipe,
-    PipeVoid,
-    PipeTable,
-    PipeColumn,
-    PipeJoin,
-    PipeRevJoin,
-    PipeParent,
-    PipeExpr,
-    PipeTake,
-    PipeFilter,
+    Rel,
+    RelVoid,
+    RelTable,
+    RelColumn,
+    RelJoin,
+    RelRevJoin,
+    RelParent,
+    RelExpr,
+    RelTake,
+    RelFilter,
     Expr,
-    ExprPipe,
-    ExprAggregatePipe,
+    ExprRel,
+    ExprAggregateRel,
     ExprRecord,
     ExprColumn,
     ExprConst,
@@ -34,9 +34,9 @@ from .op import (
 
 
 def compile(op):
-    """ Compile operations pipeline into SQL."""
-    if isinstance(op, Pipe):
-        return realize_select(pipe_to_sql(op, From.empty(), None))
+    """ Compile operations into SQL."""
+    if isinstance(op, Rel):
+        return realize_select(rel_to_sql(op, From.empty(), None))
     elif isinstance(op, Expr):
         return realize_select(expr_to_sql(op, From.empty(), None))
     else:
@@ -101,8 +101,8 @@ class From(Struct):
         return From(parent=current, current=current, right=current, joins={})
 
 
-def realize_select(pipe):
-    value, from_obj = pipe
+def realize_select(rel):
+    value, from_obj = rel
     if from_obj is None:
         return select([value.label("value")])
     elif value is None:
@@ -114,91 +114,91 @@ def realize_select(pipe):
 
 
 @singledispatch
-def pipe_to_sql(pipe: Pipe, from_obj, parent):
+def rel_to_sql(rel: Rel, from_obj, parent):
     raise NotImplementedError(  # pragma: no cover
-        f"pipe_to_sql({type(pipe).__name__})"
+        f"rel_to_sql({type(rel).__name__})"
     )
 
 
-@pipe_to_sql.register
-def PipeVoid_to_sql(pipe: PipeVoid, from_obj, parent):
+@rel_to_sql.register
+def RelVoid_to_sql(rel: RelVoid, from_obj, parent):
     return None, from_obj
 
 
-@pipe_to_sql.register
-def PipeTable_to_sql(pipe: PipeTable, from_obj, parent):
-    return None, From.make(pipe.table)
+@rel_to_sql.register
+def RelTable_to_sql(rel: RelTable, from_obj, parent):
+    return None, From.make(rel.table)
 
 
-@pipe_to_sql.register
-def PipeColumn_to_sql(pipe: PipeColumn, from_obj, parent):
-    value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
+@rel_to_sql.register
+def RelColumn_to_sql(rel: RelColumn, from_obj, parent):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
     assert value is None
     assert from_obj is not None
-    return from_obj.right.columns[pipe.column.name], from_obj
+    return from_obj.right.columns[rel.column.name], from_obj
 
 
-@pipe_to_sql.register
-def PipeJoin_to_sql(pipe: PipeJoin, from_obj, parent):
-    value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
-    table = pipe.fk.column.table
+@rel_to_sql.register
+def RelJoin_to_sql(rel: RelJoin, from_obj, parent):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
+    table = rel.fk.column.table
     condition = lambda left, right: (
-        left.columns[pipe.fk.parent.name] == right.columns[pipe.fk.column.name]
+        left.columns[rel.fk.parent.name] == right.columns[rel.fk.column.name]
     )
-    if isinstance(pipe.pipe, PipeParent):
+    if isinstance(rel.rel, RelParent):
         from_obj = from_obj.join_parent(
-            table, (pipe.fk.parent.name, pipe.fk.column.name)
+            table, (rel.fk.parent.name, rel.fk.column.name)
         )
     else:
         from_obj = from_obj.join(table, condition)
     return value, from_obj
 
 
-@pipe_to_sql.register
-def PipeRevJoin_to_sql(pipe: PipeRevJoin, from_obj, parent):
-    if isinstance(pipe.pipe, PipeParent):
+@rel_to_sql.register
+def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, parent):
+    if isinstance(rel.rel, RelParent):
         assert parent is not None
-        table = pipe.fk.parent.table.alias()
+        table = rel.fk.parent.table.alias()
         sel = (
             table.select()
             .correlate(parent)
             .where(
-                table.columns[pipe.fk.parent.name]
-                == parent.columns[pipe.fk.column.name]
+                table.columns[rel.fk.parent.name]
+                == parent.columns[rel.fk.column.name]
             )
         )
         return None, From.make(sel)
     else:
-        value, from_obj = pipe_to_sql(
-            pipe.pipe, from_obj=from_obj, parent=parent
+        value, from_obj = rel_to_sql(
+            rel.rel, from_obj=from_obj, parent=parent
         )
-        table = pipe.fk.parent.table
+        table = rel.fk.parent.table
         condition = lambda left, right: (
-            left.columns[pipe.fk.column.name]
-            == right.columns[pipe.fk.parent.name]
+            left.columns[rel.fk.column.name]
+            == right.columns[rel.fk.parent.name]
         )
         return value, from_obj.join(table, condition)
 
 
-@pipe_to_sql.register
-def PipeTake_to_sql(pipe: PipeTake, from_obj, parent):
-    val, from_obj = pipe_to_sql(pipe.pipe, from_obj, parent)
+@rel_to_sql.register
+def RelTake_to_sql(rel: RelTake, from_obj, parent):
+    val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
     sel = (
         select([from_obj.right], from_obj=from_obj.current)
-        .limit(pipe.take)
+        .limit(rel.take)
         .alias()
     )
     from_obj = From.make(sel)
     return val, from_obj
 
 
-@pipe_to_sql.register
-def PipeFilter_to_sql(pipe: PipeFilter, from_obj, parent):
-    val, from_obj = pipe_to_sql(pipe.pipe, from_obj, parent)
+@rel_to_sql.register
+def RelFilter_to_sql(rel: RelFilter, from_obj, parent):
+    val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
     # reparent
     prev_right = from_obj.right
     from_obj = from_obj.replace(parent=from_obj.right)
-    expr, from_obj = expr_to_sql(pipe.expr, from_obj, parent=from_obj.parent)
+    expr, from_obj = expr_to_sql(rel.expr, from_obj, parent=from_obj.parent)
     from_obj = from_obj.replace(right=prev_right)
     sel = (
         select([from_obj.right], from_obj=from_obj.current).where(expr).alias()
@@ -207,20 +207,20 @@ def PipeFilter_to_sql(pipe: PipeFilter, from_obj, parent):
     return val, from_obj
 
 
-@pipe_to_sql.register
-def PipeParent_to_sql(pipe: PipeParent, from_obj, parent):
+@rel_to_sql.register
+def RelParent_to_sql(rel: RelParent, from_obj, parent):
     return None, from_obj
 
 
-@pipe_to_sql.register
-def PipeExpr_to_sql(pipe: PipeExpr, from_obj, parent):
-    value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
+@rel_to_sql.register
+def RelExpr_to_sql(rel: RelExpr, from_obj, parent):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
     assert value is None
     # reparent
     prev_right = from_obj.right
     from_obj = from_obj.replace(parent=from_obj.right)
     expr, from_obj = expr_to_sql(
-        pipe.expr, from_obj=from_obj, parent=from_obj.parent
+        rel.expr, from_obj=from_obj, parent=from_obj.parent
     )
     from_obj = from_obj.replace(right=prev_right)
     return expr, from_obj
@@ -234,14 +234,14 @@ def expr_to_sql(expr: Expr, from_obj, parent):
 
 
 @expr_to_sql.register
-def ExprPipe_to_sql(op: ExprPipe, from_obj, parent):
-    value, from_obj = pipe_to_sql(op.pipe, from_obj=from_obj, parent=parent)
+def ExprRel_to_sql(op: ExprRel, from_obj, parent):
+    value, from_obj = rel_to_sql(op.rel, from_obj=from_obj, parent=parent)
     return value, from_obj
 
 
 @expr_to_sql.register
-def ExprAggregatePipe_to_sql(op: ExprAggregatePipe, from_obj, parent):
-    value, inner_from_obj = pipe_to_sql(op.pipe, from_obj=None, parent=parent)
+def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj, parent):
+    value, inner_from_obj = rel_to_sql(op.rel, from_obj=None, parent=parent)
     if op.func is None:
         value = func.jsonb_agg(value).label("value")
     else:
@@ -274,7 +274,7 @@ def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
 
 @expr_to_sql.register
 def ExprConst_to_sql(op: ExprConst, from_obj, parent):
-    _, from_obj = pipe_to_sql(op.pipe, from_obj, parent)
+    _, from_obj = rel_to_sql(op.rel, from_obj, parent)
     return op.embed(op.value), from_obj
 
 

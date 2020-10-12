@@ -28,49 +28,49 @@ class Op(Struct):
         return cls(**kw)
 
 
-class Pipe(Op):
+class Rel(Op):
     """ Base class for ops which query data."""
 
 
-class PipeVoid(Op):
+class RelVoid(Op):
     pass
 
 
-class PipeTable(Pipe):
+class RelTable(Rel):
     table: Table
 
 
-class PipeJoin(Pipe):
-    pipe: Pipe
+class RelJoin(Rel):
+    rel: Rel
     fk: ForeignKey
 
 
-class PipeRevJoin(Pipe):
-    pipe: Pipe
+class RelRevJoin(Rel):
+    rel: Rel
     fk: ForeignKey
 
 
-class PipeColumn(Pipe):
-    pipe: Pipe
+class RelColumn(Rel):
+    rel: Rel
     column: Column
 
 
-class PipeParent(Pipe):
+class RelParent(Rel):
     pass
 
 
-class PipeExpr(Pipe):
-    pipe: Pipe
+class RelExpr(Rel):
+    rel: Rel
     expr: Expr
 
 
-class PipeTake(Pipe):
-    pipe: Pipe
+class RelTake(Rel):
+    rel: Rel
     take: int
 
 
-class PipeFilter(Pipe):
-    pipe: Pipe
+class RelFilter(Rel):
+    rel: Rel
     expr: Expr
 
 
@@ -86,17 +86,17 @@ class ExprColumn(Expr):
     column: Column
 
 
-class ExprPipe(Expr):
-    pipe: Pipe
+class ExprRel(Expr):
+    rel: Rel
 
 
-class ExprAggregatePipe(Expr):
-    pipe: Pipe
+class ExprAggregateRel(Expr):
+    rel: Rel
     func: Optional[str]
 
 
 class ExprConst(Expr):
-    pipe: Pipe
+    rel: Rel
     value: Any
     embed: Callable[Any, Any]
 
