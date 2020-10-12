@@ -19,6 +19,9 @@ test:
 test-cov:
 	@pytest --cov qc0 --cov-report term-missing
 
+fmt-check:
+	@black --check qc0/ tests/
+
 fmt:
 	@black qc0/ tests/
 
@@ -26,4 +29,5 @@ ci-test:
 	service postgresql start
 	psql -1 -f ./db.sql
 	poetry install
-	pytest --cov qc0
+	$(MAKE) fmt-check
+	$(MAKE) test-cov
