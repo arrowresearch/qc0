@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from functools import singledispatch
 from datetime import date
-from typing import List, Optional, Any
+from typing import List, Any
 
 from sqlalchemy.dialects import postgresql as sa_pg
 import sqlalchemy as sa
@@ -31,7 +31,6 @@ class Nav(Syn):
 
     """
 
-    parent: Optional[Syn]
     name: str
 
 
@@ -43,7 +42,6 @@ class Select(Syn):
 
     """
 
-    parent: Optional[Syn]
     fields: List[Field]
 
 
@@ -99,13 +97,13 @@ class Q:
         self.syn = syn
 
     def __getattr__(self, name):
-        return self.__class__(Nav(parent=self.syn, name=name))
+        return self.__class__(Compose(self.syn, Nav(name=name)))
 
     def select(self, **fields):
         fields = {
             name: Field(syn=syn.syn, name=name) for name, syn in fields.items()
         }
-        return self.__class__(Select(parent=self.syn, fields=fields))
+        return self.__class__(Compose(self.syn, Select(fields=fields)))
 
     def val(self, v):
         return make_value(v, query_cls=self.__class__)
@@ -152,11 +150,18 @@ class Q:
         return self.__class__(Compose(a=self.syn, b=o.syn))
 
     def __call__(self, *args):
-        assert isinstance(self.syn, Nav)
+        assert (
+            isinstance(self.syn, Compose)
+            and isinstance(self.syn.b, Nav)
+            or isinstance(self.syn, Nav)
+        )
         args = tuple(arg.syn if isinstance(arg, Q) else arg for arg in args)
-        if self.syn.parent is not None:
-            args = (self.syn.parent,) + args
-        return self.__class__(Apply(name=self.syn.name, args=args))
+        if isinstance(self.syn, Compose):
+            name = self.syn.b.name
+            args = (self.syn.a,) + args
+        else:
+            name = self.syn.name
+        return self.__class__(Apply(name=name, args=args))
 
 
 q = Q(None)

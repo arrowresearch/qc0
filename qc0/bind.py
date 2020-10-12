@@ -1,3 +1,10 @@
+"""
+
+    qc0.bind
+    ========
+
+"""
+
 from __future__ import annotations
 import json
 from functools import singledispatch
@@ -100,7 +107,6 @@ def None_to_op(syn: type(None), parent: Op):
 
 @to_op.register
 def Nav_to_op(syn: Nav, parent: Op):
-    parent = to_op(syn.parent, parent=parent)
 
     if isinstance(parent.scope, UnivScope):
         table = parent.scope.tables[syn.name]
@@ -190,7 +196,6 @@ def Nav_to_op(syn: Nav, parent: Op):
 
 @to_op.register
 def Select_to_op(syn: Select, parent: Op):
-    parent = to_op(syn.parent, parent=parent)
     scope = RecordScope(scope=parent.scope, fields=syn.fields)
     return parent.replace(scope=scope)
 
