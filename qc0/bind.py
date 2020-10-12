@@ -189,7 +189,9 @@ def Nav_to_op(syn: Nav, parent: Op):
             parent, expr=parent, transform=transform, scope=next_scope
         )
     elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
-        assert False, f"Unable to lookup {syn.name} in empty scope"  # pragma: no cover
+        assert (
+            False
+        ), f"Unable to lookup {syn.name} in empty scope"  # pragma: no cover
     else:
         assert False  # pragma: no cover
 
@@ -203,20 +205,15 @@ def Select_to_op(syn: Select, parent: Op):
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
     if syn.name in {"count", "exists", "sum"}:
-        assert (
-            len(syn.args) == 1
-        ), f"{syn.name}(...): expected a single argument"
-        arg = syn.args[0]
-        parent = to_op(arg, parent)
+        assert len(syn.args) == 0, f"{syn.name}(...): expected no arguments"
         assert isinstance(parent, Pipe), f"{syn.name}(...): requires a pipe"
         assert (
             parent.card >= Cardinality.SEQ
         ), "{syn.name}(...): expected a sequence of items"
         return ExprAggregatePipe.wrap(parent, pipe=parent, func=syn.name)
     elif syn.name == "take":
-        assert len(syn.args) == 2, "take(...): expected exactly two arguments"
-        arg, take = syn.args
-        parent = to_op(arg, parent)
+        assert len(syn.args) == 1, "take(...): expected a single argument"
+        take = syn.args[0]
         assert isinstance(parent, Pipe), "take(...): requires a pipe"
         return PipeTake.wrap(parent, pipe=parent, take=take)
     elif syn.name in {
@@ -247,10 +244,9 @@ def Apply_to_op(syn: Apply, parent: Op):
         )
     elif syn.name == "filter":
         assert (
-            len(syn.args) == 2
-        ), "filter(...): expected exactly two arguments"
-        arg, expr = syn.args
-        parent = to_op(arg, parent)
+            len(syn.args) == 1
+        ), "filter(...): expected a single argument"
+        expr = syn.args[0]
         assert isinstance(parent, Pipe), "filter(...): requires a pipe"
         expr = to_op(
             expr,

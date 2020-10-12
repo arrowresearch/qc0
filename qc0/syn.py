@@ -150,18 +150,16 @@ class Q:
         return self.__class__(Compose(a=self.syn, b=o.syn))
 
     def __call__(self, *args):
-        assert (
-            isinstance(self.syn, Compose)
-            and isinstance(self.syn.b, Nav)
-            or isinstance(self.syn, Nav)
-        )
         args = tuple(arg.syn if isinstance(arg, Q) else arg for arg in args)
-        if isinstance(self.syn, Compose):
-            name = self.syn.b.name
-            args = (self.syn.a,) + args
-        else:
+        if isinstance(self.syn, Nav):
             name = self.syn.name
-        return self.__class__(Apply(name=name, args=args))
+            return self.__class__(Apply(name=name, args=args))
+        elif isinstance(self.syn, Compose) and isinstance(self.syn.b, Nav):
+            parent = self.syn.a
+            name = self.syn.b.name
+            return self.__class__(Compose(parent, Apply(name=name, args=args)))
+        else:
+            assert False, "SyntaxError: cannot do call here"
 
 
 q = Q(None)

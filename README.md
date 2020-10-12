@@ -52,21 +52,11 @@ Syntax Sugar
 The ``select`` query combinator is so common that there's **selection** syntax
 sugar available:
 
-    QUERY_PARENT { NAME: QUERY... }
+    { NAME: QUERY... }
 
 This desugars into:
 
-    select(QUERY_PARENT, NAME: QUERY...)
-
-Common query combinators like `filter`, `sort`, `take`, `count` (and many
-others) operate on a "primary query" (query which is used as a basis for
-filtering, sorting, ...). For this case there's a **method-call** syntax sugar:
-
-    QUERY_ARG.COMB(QUERY_EXTRA_ARG...)
-
-This desugars into:
-
-    COMB(QUERY_ARG, QUERY_EXTRA_ARG...)
+    select(NAME: QUERY...)
 
 Python EDSL API
 ---------------
@@ -86,18 +76,18 @@ naturally like:
     q.region.name
 
 Another syntax for composition enables to compose two queries built
-independently:
+independently (it's the same composition syntax but because Python syntax
+doesn't allow us to reuse `.` as an operator we have `>>` here):
 
     q.region >> q.name
 
 To apply a query combinator one does:
 
-    q.count(q.region)
+    q.filter(q.name = q.val('AFRICA'))
 
-Alternatively a query combinator can be used as a method (in this case it
-receives the left hand side query as its first argument):
+Another example where a query combinator is composed with another query:
 
-    q.region.count()
+    q.region.count() # same as q.region >> q.count()
 
 Another example with `select` combinator:
 
