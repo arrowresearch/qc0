@@ -4,6 +4,7 @@ from functools import singledispatch
 import sqlalchemy as sa
 from .scope import (
     Cardinality,
+    EmptyScope,
     UnivScope,
     TableScope,
     RecordScope,
@@ -47,7 +48,42 @@ def bind(syn: Syn, meta: sa.MetaData):
         scope=UnivScope(tables=meta.tables),
         card=Cardinality.ONE,
     )
-    return to_op(syn, parent=parent)
+    return build_op(syn, parent)
+
+
+def build_op(syn: Syn, parent: Op):
+    op = to_op(syn, parent=parent)
+    op = build_selection(op)
+    return op
+
+
+def build_selection(op: Op):
+    if isinstance(op.scope, RecordScope):
+        parent = PipeParent(
+            scope=op.scope.scope,
+            card=Cardinality.ONE,
+        )
+        fields = {}
+        for name, f in op.scope.fields.items():
+            field = build_op(
+                f.syn,
+                parent,
+            )
+            if isinstance(field, Pipe):
+                if field.card == Cardinality.SEQ:
+                    field = ExprAggregatePipe.wrap(
+                        field,
+                        pipe=field,
+                        func=None,
+                        card=Cardinality.ONE,
+                    )
+                else:
+                    field = ExprPipe.wrap(field, pipe=field)
+            fields[name] = Field(expr=field, name=name)
+
+        expr = ExprRecord.wrap(op, fields=fields)
+        op = PipeExpr.wrap(op, pipe=op, expr=expr)
+    return op
 
 
 @singledispatch
@@ -127,10 +163,15 @@ def Nav_to_op(syn: Nav, parent: Op):
 
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
-            field_syn, field_parent = parent.scope.fields[syn.name]
-            return to_op(field_syn, parent=field_parent)
+            field = parent.scope.fields[syn.name]
+            return to_op(
+                field.syn, parent=parent.replace(scope=parent.scope.scope)
+            )
         else:
-            assert False, f"Unable to lookup {syn.name}"
+            names = ", ".join(parent.scope.fields)
+            assert (
+                False
+            ), f"Unable to lookup {syn.name} in record scope, names: {names}"
 
     elif isinstance(parent.scope, SyntheticScope):
         next_scope, transform = parent.scope.lookup(syn.name)
@@ -140,43 +181,18 @@ def Nav_to_op(syn: Nav, parent: Op):
         return ExprTransform.wrap(
             parent, expr=parent, transform=transform, scope=next_scope
         )
+    elif isinstance(parent.scope, EmptyScope):
+        assert False, f"Unable to lookup {syn.name} in empty scope"
     else:
+        assert False
         raise NotImplementedError()
 
 
 @to_op.register
 def Select_to_op(syn: Select, parent: Op):
     parent = to_op(syn.parent, parent=parent)
-
-    fields = {}
-    scope_fields = {}
-    for field in syn.fields.values():
-        fctx = to_op(
-            field.syn,
-            PipeParent(
-                scope=parent.scope,
-                card=Cardinality.ONE,
-            ),
-        )
-        if isinstance(fctx, Pipe):
-            if fctx.card == Cardinality.SEQ:
-                fctx = ExprAggregatePipe.wrap(fctx, pipe=fctx, func=None)
-            else:
-                fctx = ExprPipe.wrap(fctx, pipe=fctx)
-        fields[field.name] = Field(expr=fctx, name=field.name)
-        scope_fields[field.name] = field.syn, parent
-
-    next_scope = RecordScope(fields=scope_fields)
-    expr = ExprRecord(
-        fields=fields,
-        scope=next_scope,
-        card=parent.card,
-    )
-    return PipeExpr.wrap(
-        expr,
-        pipe=parent,
-        expr=expr,
-    )
+    scope = RecordScope(scope=parent.scope, fields=syn.fields)
+    return parent.replace(scope=scope)
 
 
 @to_op.register
@@ -235,7 +251,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             expr,
             PipeParent(
                 scope=parent.scope,
-                card=parent.card,
+                card=Cardinality.ONE,
             ),
         )
         if isinstance(expr, Pipe):

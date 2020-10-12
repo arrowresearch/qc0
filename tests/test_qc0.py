@@ -194,6 +194,47 @@ def test_select_nav_select_nav_table():
     )
 
 
+def test_select_nav_select_select():
+    assert run(
+        q.region.select(n=q.nation.name).select(nn=q.n), print_op=True
+    ) == n(
+        """
+        SELECT jsonb_build_object('nn', anon_1.value) AS value
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT jsonb_agg(anon_2.name) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON true
+        """
+    )
+
+
+def test_select_nav_select_select_select():
+    assert run(
+        q.region.select(n=q.nation.name).select(nn=q.n).select(nnn=q.nn),
+        print_op=True,
+    ) == n(
+        """
+        SELECT jsonb_build_object('nnn', anon_1.value) AS value
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT jsonb_agg(anon_2.name) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON true
+        """
+    )
+
+
+def test_select_nav_select_select_select_nav():
+    assert run(
+        q.region.select(n=q.nation.name).select(nn=q.n).select(nnn=q.nn).nnn,
+        print_op=True,
+    ) == n(
+        """
+        SELECT nation_1.name AS value
+        FROM region AS region_1 JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
+        """
+    )
+
+
 def test_back_nav_region_nation_end():
     assert run(q.region.nation, print_op=True,) == n(
         """
@@ -371,9 +412,7 @@ def test_filter_region_true():
 
 
 def test_filter_region_by_name_end():
-    assert run(
-        q.region.filter(q.name == q.val("AFRICA")), print_op=True
-    ) == n(
+    assert run(q.region.filter(q.name == q.val("AFRICA")), print_op=True) == n(
         """
         SELECT anon_1.id, anon_1.name, anon_1.comment
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment

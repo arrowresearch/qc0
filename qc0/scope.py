@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple, Callable, Any, Union
+from typing import Dict, Tuple, Callable, Any, Union, List
 from functools import singledispatch
 from enum import IntEnum
 
 import sqlalchemy as sa
 
 from .base import Struct
-from .syn import Syn
+from .syn import Field
 
 
 class Cardinality(IntEnum):
@@ -37,7 +37,8 @@ class TableScope(Scope):
 
 
 class RecordScope(Scope):
-    fields: Dict[str, Syn]
+    scope: Scope
+    fields: List[Field]
 
 
 class SyntheticScope(Scope):
