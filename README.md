@@ -61,39 +61,31 @@ This desugars into:
 Python EDSL API
 ---------------
 
-There's `q` object provided which one can use to build queries by accessing its
-attributes and calling its methods. Below is a description on how to produce
-syntax constructs (described above) using `q`.
+Python programmers interact with `qc0` by consturcting syntax trees. The main
+interface for this is a `q` object.
 
-Navigation:
+To produce a **navigation** syntax node one access an attribute of the `q`:
 
-    q.name
+    q.region
 
-As `q` implements "Builder Pattern" one can use build queries out of previously
-built queries. For example to navigate to `region` and then to `name` looks
-naturally like:
-
-    q.region.name
-
-Another syntax for composition enables to compose two queries built
-independently (it's the same composition syntax but because Python syntax
-doesn't allow us to reuse `.` as an operator we have `>>` here):
+To do **composition** one uses `>>` operator:
 
     q.region >> q.name
 
-To apply a query combinator one does:
+To **apply** a query combinator one calls a method on the `q`:
 
-    q.filter(q.name = q.val('AFRICA'))
+    q.select(name=q.name)
 
-Another example where a query combinator is composed with another query:
+Now when you construct a long query in one shot using `q` with `>>` alone can be
+noisy sometimes. For that reason it's also possible to produce **composition**
+using `.`:
 
-    q.region.count() # same as q.region >> q.count()
+    q.region.name                 # q.region >> q.name
+    q.region.select(name=q.name)  # q.region >> q.select(name=q.name)
 
-Another example with `select` combinator:
-
-    q.region.select(name=q.name, nation_names=q.nation.name)
-
-To produce queries out of Python value one does:
+There's a special `q.val()` method which allows to build queries from Python
+values. Of course such queries always evaluate to constant results designated by
+those values passed-in:
 
     q.val(42)
     q.val("Hello")
