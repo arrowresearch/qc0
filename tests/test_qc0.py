@@ -31,10 +31,10 @@ def n(v):
     return dedent(v).strip()
 
 
-def test_nav_nation():
-    assert run(q.nation) == n(
+def test_nav_nation_end():
+    assert run(q.nation, print_op=True) == n(
         """
-        SELECT nation_1.id, nation_1.name, nation_1.region_id, nation_1.comment
+        SELECT row(nation_1.name) AS value
         FROM nation AS nation_1
         """
     )
@@ -238,7 +238,7 @@ def test_select_nav_select_select_select_nav():
 def test_back_nav_region_nation_end():
     assert run(q.region.nation, print_op=True,) == n(
         """
-        SELECT region_1.id, region_1.name, region_1.comment, nation_1.id, nation_1.name, nation_1.region_id, nation_1.comment
+        SELECT row(nation_1.name) AS value
         FROM region AS region_1 JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
         """
     )
@@ -345,7 +345,7 @@ def test_count_region_select_nation_count_end():
 def test_take_region():
     assert run(q.region.take(2)) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1
         LIMIT 2) AS anon_1
@@ -356,7 +356,7 @@ def test_take_region():
 def test_take_region_nation():
     assert run(q.region.nation.take(2)) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.region_id, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
         FROM region AS region_1 JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
         LIMIT 2) AS anon_1
@@ -367,7 +367,7 @@ def test_take_region_nation():
 def test_take_region_x_nation():
     assert run(q.region.take(2).nation) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment, nation_1.id, nation_1.name, nation_1.region_id, nation_1.comment
+        SELECT row(nation_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1
         LIMIT 2) AS anon_1 JOIN nation AS nation_1 ON anon_1.id = nation_1.region_id
@@ -378,7 +378,7 @@ def test_take_region_x_nation():
 def test_filter_region_name():
     assert run(q.region.filter(q.name), print_op=True) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1
         WHERE region_1.name) AS anon_1
@@ -439,7 +439,7 @@ def test_literal_composition_with_query_via_dot():
 def test_filter_region_true():
     assert run(q.region.filter(q.val(False)), print_op=True) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1
         WHERE false) AS anon_1
@@ -450,7 +450,7 @@ def test_filter_region_true():
 def test_filter_region_by_name_end():
     assert run(q.region.filter(q.name == q.val("AFRICA")), print_op=True) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1
         WHERE region_1.name = 'AFRICA') AS anon_1
@@ -496,7 +496,7 @@ def test_filter_nation_by_region_name_end():
         print_op=True,
     ) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.region_id, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
         FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
         WHERE region_1.name = 'AFRICA') AS anon_1
@@ -566,7 +566,7 @@ def test_filter_region_by_nation_count():
         q.region.filter(q.nation.count() == q.val(5)), print_op=True
     ) == n(
         """
-        SELECT anon_1.id, anon_1.name, anon_1.comment
+        SELECT row(anon_1.name) AS value
         FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
         FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT count(*) AS value
         FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment

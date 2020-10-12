@@ -86,6 +86,10 @@ class ExprColumn(Expr):
     column: Column
 
 
+class ExprIdentity(Expr):
+    table: Table
+
+
 class ExprRel(Expr):
     rel: Rel
 

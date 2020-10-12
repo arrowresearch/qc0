@@ -1,14 +1,6 @@
 from typing import Dict
 from functools import singledispatch
-from sqlalchemy import (
-    func,
-    literal,
-    column,
-    join,
-    outerjoin,
-    select,
-    true,
-)
+import sqlalchemy as sa
 from sqlalchemy.sql.selectable import Selectable, Join
 from .base import Struct
 from .op import (
@@ -27,6 +19,7 @@ from .op import (
     ExprAggregateRel,
     ExprRecord,
     ExprColumn,
+    ExprIdentity,
     ExprConst,
     ExprBinOp,
     ExprTransform,
@@ -57,8 +50,8 @@ class From(Struct):
         if condition is not None:
             condition = condition(self.right, right)
         else:
-            condition = true()
-        current = join(self.current, right, condition)
+            condition = sa.true()
+        current = sa.join(self.current, right, condition)
         joins = self.joins
         return From(
             parent=self.parent, current=current, right=right, joins=joins
@@ -74,16 +67,16 @@ class From(Struct):
         condition = (
             self.parent.columns[join_on[0]] == right.columns[join_on[1]]
         )
-        current = join(self.current, right, condition)
+        current = sa.join(self.current, right, condition)
         joins = {**self.joins, key: right}
         return From(
             parent=self.parent, current=current, right=right, joins=joins
         )
 
     def join_lateral(self, right):
-        condition = true()
+        condition = sa.true()
         right = right.lateral()
-        current = outerjoin(self.current, right, condition)
+        current = sa.outerjoin(self.current, right, condition)
         joins = self.joins
         return From(
             parent=self.parent, current=current, right=right, joins=joins
@@ -104,11 +97,11 @@ class From(Struct):
 def realize_select(rel):
     value, from_obj = rel
     if from_obj is None:
-        return select([value.label("value")])
+        return sa.select([value.label("value")])
     elif value is None:
         return from_obj.current.select()
     else:
-        return select(
+        return sa.select(
             [value.label("value")], from_obj=from_obj.current
         ).alias()
 
@@ -169,9 +162,7 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, parent):
         )
         return None, From.make(sel)
     else:
-        value, from_obj = rel_to_sql(
-            rel.rel, from_obj=from_obj, parent=parent
-        )
+        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
         table = rel.fk.parent.table
         condition = lambda left, right: (
             left.columns[rel.fk.column.name]
@@ -184,7 +175,7 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, parent):
 def RelTake_to_sql(rel: RelTake, from_obj, parent):
     val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
     sel = (
-        select([from_obj.right], from_obj=from_obj.current)
+        sa.select([from_obj.right], from_obj=from_obj.current)
         .limit(rel.take)
         .alias()
     )
@@ -201,7 +192,9 @@ def RelFilter_to_sql(rel: RelFilter, from_obj, parent):
     expr, from_obj = expr_to_sql(rel.expr, from_obj, parent=from_obj.parent)
     from_obj = from_obj.replace(right=prev_right)
     sel = (
-        select([from_obj.right], from_obj=from_obj.current).where(expr).alias()
+        sa.select([from_obj.right], from_obj=from_obj.current)
+        .where(expr)
+        .alias()
     )
     from_obj = From.make(sel)
     return val, from_obj
@@ -243,9 +236,9 @@ def ExprRel_to_sql(op: ExprRel, from_obj, parent):
 def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj, parent):
     value, inner_from_obj = rel_to_sql(op.rel, from_obj=None, parent=parent)
     if op.func is None:
-        value = func.jsonb_agg(value).label("value")
+        value = sa.func.jsonb_agg(value).label("value")
     else:
-        value = getattr(func, op.func)(value).label("value")
+        value = getattr(sa.func, op.func)(value).label("value")
     sel = realize_select((value, inner_from_obj))
     if parent is not None:
         from_obj = from_obj.join_lateral(sel)
@@ -258,18 +251,27 @@ def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj, parent):
 def ExprRecord_to_sql(op: ExprRecord, from_obj, parent):
     args = []
     for field in op.fields.values():
-        args.append(literal(field.name))
+        args.append(sa.literal(field.name))
         expr, from_obj = expr_to_sql(
             field.expr, from_obj=from_obj, parent=parent
         )
         args.append(expr)
-    return func.jsonb_build_object(*args), from_obj
+    return sa.func.jsonb_build_object(*args), from_obj
 
 
 @expr_to_sql.register
 def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
     assert from_obj is not None
-    return column(op.column.name, _selectable=from_obj.parent), from_obj
+    return sa.column(op.column.name, _selectable=from_obj.parent), from_obj
+
+
+@expr_to_sql.register
+def ExprIdentity_to_sql(op: ExprIdentity, from_obj, parent):
+    assert from_obj is not None
+    pk = []
+    for col in op.table.primary_key.columns:
+        pk.append(from_obj.parent.columns[col.name])
+    return sa.func.row(*pk).label("value"), from_obj
 
 
 @expr_to_sql.register

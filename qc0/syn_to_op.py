@@ -43,6 +43,7 @@ from .op import (
     ExprAggregateRel,
     ExprRecord,
     ExprColumn,
+    ExprIdentity,
     ExprConst,
     ExprBinOp,
     ExprTransform,
@@ -92,6 +93,10 @@ def build_record_op(op: Op):
 
         expr = ExprRecord.wrap(op, fields=fields)
         return RelExpr.wrap(op, rel=op, expr=expr)
+    if isinstance(op.scope, TableScope):
+        scope = EmptyScope()
+        expr = ExprIdentity.wrap(op, table=op.scope.table, scope=scope)
+        return RelExpr.wrap(op, rel=op, expr=expr, scope=scope)
     return op
 
 
