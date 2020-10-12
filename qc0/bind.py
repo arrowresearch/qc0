@@ -61,11 +61,11 @@ def bind(syn: Syn, meta: sa.MetaData):
 
 def build_op(syn: Syn, parent: Op):
     op = to_op(syn, parent=parent)
-    op = build_selection(op)
+    op = build_record_op(op)
     return op
 
 
-def build_selection(op: Op):
+def build_record_op(op: Op):
     if isinstance(op.scope, RecordScope):
         parent = PipeParent(
             scope=op.scope.scope,
@@ -84,13 +84,14 @@ def build_selection(op: Op):
                         pipe=field,
                         func=None,
                         card=Cardinality.ONE,
+                        scope=EmptyScope(),
                     )
                 else:
                     field = ExprPipe.wrap(field, pipe=field)
             fields[name] = Field(expr=field, name=name)
 
         expr = ExprRecord.wrap(op, fields=fields)
-        op = PipeExpr.wrap(op, pipe=op, expr=expr)
+        return PipeExpr.wrap(op, pipe=op, expr=expr)
     return op
 
 
@@ -210,7 +211,9 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert (
             parent.card >= Cardinality.SEQ
         ), "{syn.name}(...): expected a sequence of items"
-        return ExprAggregatePipe.wrap(parent, pipe=parent, func=syn.name)
+        return ExprAggregatePipe.wrap(
+            parent, pipe=parent, func=syn.name, scope=EmptyScope()
+        )
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
@@ -241,6 +244,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             func=syn.name,
             a=a,
             b=b,
+            scope=EmptyScope(),
         )
     elif syn.name == "filter":
         assert len(syn.args) == 1, "filter(...): expected a single argument"
