@@ -1,7 +1,7 @@
 """
 
-    qc0.bind
-    ========
+    qc0.syn_to_op
+    =============
 
 """
 
@@ -50,7 +50,7 @@ from .op import (
 )
 
 
-def bind(syn: Syn, meta: sa.MetaData):
+def syn_to_op(syn: Syn, meta: sa.MetaData):
     """ Bind syntax to database catalogue and produce a pipeline of operations."""
     parent = RelVoid(
         scope=UnivScope(tables=meta.tables),

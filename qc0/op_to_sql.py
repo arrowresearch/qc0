@@ -33,7 +33,7 @@ from .op import (
 )
 
 
-def compile(op):
+def op_to_sql(op):
     """ Compile operations into SQL."""
     if isinstance(op, Rel):
         return realize_select(rel_to_sql(op, From.empty(), None))

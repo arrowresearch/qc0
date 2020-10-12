@@ -1,7 +1,7 @@
 from datetime import date
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
-from qc0 import q, bind, compile
+from qc0 import q, syn_to_op, op_to_sql
 
 engine = create_engine("postgresql://")
 meta = MetaData()
@@ -13,12 +13,12 @@ def run(query, print_op=False):
     print("-" * 40)
     print(query)
 
-    op = bind(query, meta)
+    op = syn_to_op(query, meta)
     if print_op:
         print("-" * 40)
         print(op)
 
-    sql = compile(op)
+    sql = op_to_sql(op)
     print("-" * 40)
     sql = sql.compile(engine, compile_kwargs={"literal_binds": True})
     sql = str(sql).strip()
