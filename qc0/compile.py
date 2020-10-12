@@ -132,12 +132,7 @@ def PipeTable_to_sql(pipe: PipeTable, from_obj, parent):
 
 @pipe_to_sql.register
 def PipeColumn_to_sql(pipe: PipeColumn, from_obj, parent):
-    if pipe.pipe is not None:
-        value, from_obj = pipe_to_sql(
-            pipe.pipe, from_obj=from_obj, parent=parent
-        )
-    else:
-        value, from_obj = None, from_obj
+    value, from_obj = pipe_to_sql(pipe.pipe, from_obj=from_obj, parent=parent)
     assert value is None
     assert from_obj is not None
     return from_obj.right.columns[pipe.column.name], from_obj

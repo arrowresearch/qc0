@@ -17,7 +17,7 @@ test:
 	@pytest
 
 test-cov:
-	@pytest --cov qc0
+	@pytest --cov qc0 --cov-report term-missing
 
 fmt:
 	@black qc0/ tests/

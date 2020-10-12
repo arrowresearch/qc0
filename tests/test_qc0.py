@@ -310,6 +310,16 @@ def test_count_region_end():
     )
 
 
+def test_count_region_via_opend():
+    assert run(q.region >> q.count()) == n(
+        """
+        SELECT anon_1.value AS value
+        FROM (SELECT count(*) AS value
+        FROM region AS region_1) AS anon_1
+        """
+    )
+
+
 def test_count_nation_region_end():
     assert run(q.nation.region.count()) == n(
         """
@@ -408,8 +418,17 @@ def test_literal_composition_with_another_literal():
     )
 
 
-def test_literal_composition_with_query():
+def test_literal_composition_with_query_via_op():
     assert run(q.region >> q.val(True), print_op=True) == n(
+        """
+        SELECT true AS value
+        FROM region AS region_1
+        """
+    )
+
+
+def test_literal_composition_with_query_via_dot():
+    assert run(q.region.val(True), print_op=True) == n(
         """
         SELECT true AS value
         FROM region AS region_1

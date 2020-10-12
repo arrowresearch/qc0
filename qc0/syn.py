@@ -110,16 +110,16 @@ class Q:
         return self.__class__(Compose(self.syn, Select(fields=fields)))
 
     def val(self, v):
-        val = make_value(v, query_cls=self.__class__)
+        val = make_value(v)
         if self.syn is None:
-            return val
+            return self.__class__(val)
         else:
             return self.__class__(Compose(self.syn, val))
 
     def json_val(self, v):
-        val = self.__class__(Literal(value=v, type=sa_pg.JSONB()))
+        val = Literal(value=v, type=sa_pg.JSONB())
         if self.syn is None:
-            return val
+            return self.__class__(val)
         else:
             return self.__class__(Compose(self.syn, val))
 
@@ -171,7 +171,9 @@ class Q:
             name = self.syn.b.name
             return self.__class__(Compose(parent, Apply(name=name, args=args)))
         else:
-            assert False, "SyntaxError: cannot do call here"
+            assert (  # pragma: no cover
+                False
+            ), "SyntaxError: cannot do call here"
 
 
 q = Q(None)
@@ -185,30 +187,30 @@ def make_value(v, query_cls):
 
 
 @make_value.register
-def int_make_value(v: int, query_cls):
-    return query_cls(Literal(value=v, type=sa.Integer()))
+def int_make_value(v: int):
+    return Literal(value=v, type=sa.Integer())
 
 
 @make_value.register
-def str_make_value(v: str, query_cls):
-    return query_cls(Literal(value=v, type=sa.String()))
+def str_make_value(v: str):
+    return Literal(value=v, type=sa.String())
 
 
 @make_value.register
-def bool_make_value(v: bool, query_cls):
-    return query_cls(Literal(value=v, type=sa.Boolean()))
+def bool_make_value(v: bool):
+    return Literal(value=v, type=sa.Boolean())
 
 
 @make_value.register
-def dict_make_value(v: dict, query_cls):
-    return query_cls(Literal(value=v, type=sa_pg.JSONB()))
+def dict_make_value(v: dict):
+    return Literal(value=v, type=sa_pg.JSONB())
 
 
 @make_value.register
-def list_make_value(v: list, query_cls):
-    return query_cls(Literal(value=v, type=sa_pg.JSONB()))
+def list_make_value(v: list):
+    return Literal(value=v, type=sa_pg.JSONB())
 
 
 @make_value.register
-def date_make_value(v: date, query_cls):
-    return query_cls(Literal(value=v, type=sa.Date()))
+def date_make_value(v: date):
+    return Literal(value=v, type=sa.Date())
