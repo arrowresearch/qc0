@@ -43,7 +43,7 @@ class RecordScope(Scope):
 
 class SyntheticScope(Scope):
     def lookup(self, name) -> Tuple[Scope, Callable[Any, Any]]:
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
 
 class JsonScope(SyntheticScope):

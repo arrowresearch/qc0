@@ -40,7 +40,7 @@ def compile(op):
     elif isinstance(op, Expr):
         return realize_select(expr_to_sql(op, From.empty(), None))
     else:
-        assert False
+        assert False  # pragma: no cover
 
 
 class From(Struct):
@@ -115,7 +115,7 @@ def realize_select(pipe):
 
 @singledispatch
 def pipe_to_sql(pipe: Pipe, from_obj, parent):
-    raise NotImplementedError(f"pipe_to_sql({type(pipe).__name__})")
+    raise NotImplementedError(f"pipe_to_sql({type(pipe).__name__})")  # pragma: no cover
 
 
 @pipe_to_sql.register
@@ -231,7 +231,7 @@ def PipeExpr_to_sql(pipe: PipeExpr, from_obj, parent):
 
 @singledispatch
 def expr_to_sql(expr: Expr, from_obj, parent):
-    raise NotImplementedError(f"expr_to_sql({type(expr).__name__})")
+    raise NotImplementedError(f"expr_to_sql({type(expr).__name__})")  # pragma: no cover
 
 
 @expr_to_sql.register
@@ -305,4 +305,4 @@ def ExprBinOp_to_sql(op: ExprBinOp, from_obj, parent):
     if op.func == "__or__":
         return a | b, from_obj
     else:
-        assert False, f"unknown operation {op.func}"
+        assert False, f"unknown operation {op.func}"  # pragma: no cover

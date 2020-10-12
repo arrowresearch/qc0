@@ -16,6 +16,9 @@ down:
 test:
 	@pytest
 
+test-cov:
+	@pytest --cov qc0
+
 fmt:
 	@black qc0/ tests/
 
@@ -23,4 +26,4 @@ ci-test:
 	service postgresql start
 	psql -1 -f ./db.sql
 	poetry install
-	pytest
+	pytest --cov qc0

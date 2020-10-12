@@ -12,9 +12,6 @@ class Struct(metaclass=StructMeta):
     def replace(self, **values):
         return dataclasses.replace(self, **values)
 
-    def to_dict(self):
-        return dataclasses.asdict(self)
-
     def __str__(self):
         return yaml.dump(self)
 

@@ -31,6 +31,7 @@ from .op import (
     PipeExpr,
     PipeTake,
     PipeFilter,
+    Expr,
     ExprPipe,
     ExprAggregatePipe,
     ExprRecord,
@@ -89,7 +90,7 @@ def build_selection(op: Op):
 @singledispatch
 def to_op(syn: Syn, parent: Op):
     """ Produce an operation out of a query."""
-    raise NotImplementedError(type(syn))
+    raise NotImplementedError(type(syn))  # pragma: no cover
 
 
 @to_op.register
@@ -159,7 +160,7 @@ def Nav_to_op(syn: Nav, parent: Op):
                 card=parent.card * Cardinality.SEQ,
             )
         else:
-            assert False, f"Unable to lookup {syn.name}"
+            assert False, f"Unable to lookup {syn.name}"  # pragma: no cover
 
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
@@ -168,8 +169,8 @@ def Nav_to_op(syn: Nav, parent: Op):
                 field.syn, parent=parent.replace(scope=parent.scope.scope)
             )
         else:
-            names = ", ".join(parent.scope.fields)
-            assert (
+            names = ", ".join(parent.scope.fields)  # pragma: no cover
+            assert (  # pragma: no cover
                 False
             ), f"Unable to lookup {syn.name} in record scope, names: {names}"
 
@@ -181,11 +182,10 @@ def Nav_to_op(syn: Nav, parent: Op):
         return ExprTransform.wrap(
             parent, expr=parent, transform=transform, scope=next_scope
         )
-    elif isinstance(parent.scope, EmptyScope):
-        assert False, f"Unable to lookup {syn.name} in empty scope"
+    elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
+        assert False, f"Unable to lookup {syn.name} in empty scope"  # pragma: no cover
     else:
-        assert False
-        raise NotImplementedError()
+        assert False  # pragma: no cover
 
 
 @to_op.register
@@ -254,8 +254,7 @@ def Apply_to_op(syn: Apply, parent: Op):
                 card=Cardinality.ONE,
             ),
         )
-        if isinstance(expr, Pipe):
-            expr = ExprPipe.wrap(expr)
+        assert isinstance(expr, Expr)
         return PipeFilter.wrap(
             parent,
             pipe=parent,
@@ -263,7 +262,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             card=parent.card,
         )
     else:
-        assert False, f"Unknown {syn.name}(...) combinator"
+        assert False, f"Unknown {syn.name}(...) combinator"  # pragma: no cover
 
 
 @to_op.register
@@ -286,7 +285,7 @@ def Compose_to_op(syn: Compose, parent: Op):
 @singledispatch
 def embed(v: sa.Type):
     """ Describe how to make a query out of a value."""
-    raise NotImplementedError(
+    raise NotImplementedError(  # pragma: no cover
         f"don't know how to embed value of type {type(v)} into query"
     )
 

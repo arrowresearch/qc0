@@ -22,10 +22,6 @@ from .base import Struct
 class Syn(Struct):
     """ Base class for representing syntax."""
 
-    def to_op(self, ctx):
-        """ Produce op out of a query."""
-        raise NotImplementedError()
-
 
 class Nav(Syn):
     """
@@ -168,7 +164,9 @@ q = Q(None)
 
 @singledispatch
 def make_value(v, query_cls):
-    raise NotImplementedError(f"unable to use {type(v)} as literal query")
+    raise NotImplementedError(  # pragma: no cover
+        f"unable to use {type(v)} as literal query"
+    )
 
 
 @make_value.register

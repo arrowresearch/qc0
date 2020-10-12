@@ -9,4 +9,4 @@ __all__ = ("parse", "Q", "q", "bind", "compile")
 
 def parse(q):
     """ Parse query into a syntax tree."""
-    raise NotImplementedError()
+    raise NotImplementedError()  # pragma: no cover
