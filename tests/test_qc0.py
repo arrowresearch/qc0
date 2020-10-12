@@ -400,6 +400,23 @@ def test_literal_boolean():
     )
 
 
+def test_literal_composition_with_another_literal():
+    assert run(q.val(True) >> q.val(False), print_op=True) == n(
+        """
+        SELECT false AS value
+        """
+    )
+
+
+def test_literal_composition_with_query():
+    assert run(q.region >> q.val(True), print_op=True) == n(
+        """
+        SELECT true AS value
+        FROM region AS region_1
+        """
+    )
+
+
 def test_filter_region_true():
     assert run(q.region.filter(q.val(False)), print_op=True) == n(
         """

@@ -115,7 +115,9 @@ def realize_select(pipe):
 
 @singledispatch
 def pipe_to_sql(pipe: Pipe, from_obj, parent):
-    raise NotImplementedError(f"pipe_to_sql({type(pipe).__name__})")  # pragma: no cover
+    raise NotImplementedError(  # pragma: no cover
+        f"pipe_to_sql({type(pipe).__name__})"
+    )
 
 
 @pipe_to_sql.register
@@ -231,7 +233,9 @@ def PipeExpr_to_sql(pipe: PipeExpr, from_obj, parent):
 
 @singledispatch
 def expr_to_sql(expr: Expr, from_obj, parent):
-    raise NotImplementedError(f"expr_to_sql({type(expr).__name__})")  # pragma: no cover
+    raise NotImplementedError(  # pragma: no cover
+        f"expr_to_sql({type(expr).__name__})"
+    )
 
 
 @expr_to_sql.register
@@ -275,6 +279,7 @@ def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
 
 @expr_to_sql.register
 def ExprConst_to_sql(op: ExprConst, from_obj, parent):
+    _, from_obj = pipe_to_sql(op.pipe, from_obj, parent)
     return op.embed(op.value), from_obj
 
 

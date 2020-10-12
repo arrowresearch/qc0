@@ -97,7 +97,11 @@ class Q:
         self.syn = syn
 
     def __getattr__(self, name):
-        return self.__class__(Compose(self.syn, Nav(name=name)))
+        nav = Nav(name=name)
+        if self.syn is None:
+            return self.__class__(nav)
+        else:
+            return self.__class__(Compose(self.syn, nav))
 
     def select(self, **fields):
         fields = {
@@ -106,10 +110,18 @@ class Q:
         return self.__class__(Compose(self.syn, Select(fields=fields)))
 
     def val(self, v):
-        return make_value(v, query_cls=self.__class__)
+        val = make_value(v, query_cls=self.__class__)
+        if self.syn is None:
+            return val
+        else:
+            return self.__class__(Compose(self.syn, val))
 
     def json_val(self, v):
-        return self.__class__(Literal(value=v, type=sa_pg.JSONB()))
+        val = self.__class__(Literal(value=v, type=sa_pg.JSONB()))
+        if self.syn is None:
+            return val
+        else:
+            return self.__class__(Compose(self.syn, val))
 
     def __eq__(self, o: Q):
         assert isinstance(o, Q)

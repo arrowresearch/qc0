@@ -96,6 +96,7 @@ class ExprAggregatePipe(Expr):
 
 
 class ExprConst(Expr):
+    pipe: Pipe
     value: Any
     embed: Callable[Any, Any]
 

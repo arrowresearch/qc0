@@ -243,9 +243,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             b=b,
         )
     elif syn.name == "filter":
-        assert (
-            len(syn.args) == 1
-        ), "filter(...): expected a single argument"
+        assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]
         assert isinstance(parent, Pipe), "filter(...): requires a pipe"
         expr = to_op(
@@ -268,7 +266,14 @@ def Apply_to_op(syn: Apply, parent: Op):
 
 @to_op.register
 def Literal_to_op(syn: Literal, parent: Op):
+    # If the parent is another expression, we just ignore it
+    if isinstance(parent, Expr):
+        parent = PipeVoid(
+            scope=EmptyScope(),
+            card=Cardinality.ONE,
+        )
     return ExprConst(
+        pipe=parent,
         value=syn.value,
         embed=embed(syn.type),
         scope=type_scope(syn.type),
