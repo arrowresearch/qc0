@@ -125,6 +125,18 @@ def test_select_nav_select_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_select_tables_ok(snapshot):
+    query = q.select(region=q.region)
+    assert run(query) == n(
+        """
+        SELECT jsonb_build_object('region', anon_1.value) AS value
+        FROM (SELECT jsonb_agg(CAST(row(region_1.name) AS VARCHAR)) AS value
+        FROM region AS region_1) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 def test_select_nav_select_nav_only_ok(snapshot):
     query = q.nation.select(region_name=q.region.name)
     assert run(query) == n(

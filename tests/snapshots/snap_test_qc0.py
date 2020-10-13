@@ -964,6 +964,16 @@ snapshots[
 """
 
 snapshots[
+    "test_select_tables_ok 1"
+] = """region:
+- (AFRICA)
+- (AMERICA)
+- (ASIA)
+- (EUROPE)
+- ("MIDDLE EAST")
+"""
+
+snapshots[
     "test_sub_integer_literals_ok 1"
 ] = """42
 ...
