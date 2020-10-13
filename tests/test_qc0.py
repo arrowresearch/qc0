@@ -154,7 +154,7 @@ def test_select_nav_select_nav_multi_ok(snapshot):
         region_name=q.region.name,
         region_comment=q.region.comment,
     )
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('name', nation_1.name, 'region_name', region_1.name, 'region_comment', region_1.comment) AS value
         FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id

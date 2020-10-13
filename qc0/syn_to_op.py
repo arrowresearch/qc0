@@ -31,7 +31,6 @@ from .op import (
     Rel,
     RelVoid,
     RelTable,
-    RelColumn,
     RelJoin,
     RelRevJoin,
     RelParent,
@@ -136,19 +135,16 @@ def Nav_to_op(syn: Nav, parent: Op):
         if syn.name in table.columns:
             column = table.columns[syn.name]
             next_scope = type_scope(column.type)
-            if isinstance(parent, RelParent):
-                return ExprColumn(
+            return RelExpr(
+                scope=next_scope,
+                card=parent.card * Cardinality.ONE,
+                rel=parent,
+                expr=ExprColumn(
                     column=column,
                     scope=next_scope,
                     card=parent.card * Cardinality.ONE,
-                )
-            else:
-                return RelColumn(
-                    rel=parent,
-                    column=column,
-                    scope=next_scope,
-                    card=parent.card * Cardinality.ONE,
-                )
+                ),
+            )
 
         elif syn.name in fks:
             fk = fks[syn.name]

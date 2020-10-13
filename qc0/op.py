@@ -50,11 +50,6 @@ class RelRevJoin(Rel):
     fk: ForeignKey
 
 
-class RelColumn(Rel):
-    rel: Rel
-    column: Column
-
-
 class RelParent(Rel):
     pass
 

@@ -7,7 +7,6 @@ from .op import (
     Rel,
     RelVoid,
     RelTable,
-    RelColumn,
     RelJoin,
     RelRevJoin,
     RelParent,
@@ -124,14 +123,6 @@ def RelTable_to_sql(rel: RelTable, from_obj, parent):
 
 
 @rel_to_sql.register
-def RelColumn_to_sql(rel: RelColumn, from_obj, parent):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
-    assert value is None
-    assert from_obj is not None
-    return from_obj.right.columns[rel.column.name], from_obj
-
-
-@rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj, parent):
     value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
     table = rel.fk.column.table
@@ -187,10 +178,10 @@ def RelTake_to_sql(rel: RelTake, from_obj, parent):
 def RelFilter_to_sql(rel: RelFilter, from_obj, parent):
     val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
     # reparent
-    prev_right = from_obj.right
+    prev_parent, prev_right = from_obj.parent, from_obj.right
     from_obj = from_obj.replace(parent=from_obj.right)
     expr, from_obj = expr_to_sql(rel.expr, from_obj, parent=from_obj.parent)
-    from_obj = from_obj.replace(right=prev_right)
+    from_obj = from_obj.replace(right=prev_right, parent=prev_parent)
     sel = (
         sa.select([from_obj.right], from_obj=from_obj.current)
         .where(expr)
@@ -210,12 +201,12 @@ def RelExpr_to_sql(rel: RelExpr, from_obj, parent):
     value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
     assert value is None
     # reparent
-    prev_right = from_obj.right
+    prev_right, prev_parent = from_obj.right, from_obj.parent
     from_obj = from_obj.replace(parent=from_obj.right)
     expr, from_obj = expr_to_sql(
         rel.expr, from_obj=from_obj, parent=from_obj.parent
     )
-    from_obj = from_obj.replace(right=prev_right)
+    from_obj = from_obj.replace(right=prev_right, parent=prev_parent)
     return expr, from_obj
 
 
