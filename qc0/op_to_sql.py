@@ -271,7 +271,7 @@ def ExprIdentity_to_sql(op: ExprIdentity, from_obj, parent):
     pk = []
     for col in op.table.primary_key.columns:
         pk.append(from_obj.parent.columns[col.name])
-    return sa.func.row(*pk).label("value"), from_obj
+    return sa.cast(sa.func.row(*pk), sa.String()), from_obj
 
 
 @expr_to_sql.register
