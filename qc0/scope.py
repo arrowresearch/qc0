@@ -54,8 +54,22 @@ class TableScope(Scope):
     fk relationships.
     """
 
-    tables: Dict[str, sa.Table]
     table: sa.Table
+
+    @property
+    def foreign_keys(self):
+        return {fk.column.table.name: fk for fk in self.table.foreign_keys}
+
+    @property
+    def rev_foreign_keys(self):
+        # TODO(andreypopp): this is silly to do on each lookup, we should
+        # organize this better
+        return {
+            fk.parent.table.name: fk
+            for t in self.table.metadata.tables.values()
+            for fk in t.foreign_keys
+            if fk.column.table == self.table
+        }
 
 
 class RecordScope(Scope):

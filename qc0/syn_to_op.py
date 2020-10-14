@@ -3,12 +3,18 @@
     qc0.syn_to_op
     =============
 
+    Produce operations out of syntax.
+
 """
 
 from __future__ import annotations
+
 import json
-from functools import singledispatch
+import functools
+import typing as ty
+
 import sqlalchemy as sa
+
 from .scope import (
     Cardinality,
     EmptyScope,
@@ -51,7 +57,7 @@ from .op import (
 
 
 def syn_to_op(syn: Syn, meta: sa.MetaData):
-    """ Bind syntax to database catalogue and produce a pipeline of operations."""
+    """ Produce operations from syntax."""
     parent = RelVoid(
         scope=UnivScope(tables=meta.tables),
         card=Cardinality.ONE,
@@ -61,34 +67,27 @@ def syn_to_op(syn: Syn, meta: sa.MetaData):
 
 def build_op(syn: Syn, parent: Op):
     op = to_op(syn, parent=parent)
-    op = build_record_op(op)
+    op = wrap_expr(op)
     return op
 
 
-def build_record_op(op: Op):
+def wrap_expr(op: Op):
     if isinstance(op.scope, RecordScope):
-        parent = RelParent(
-            scope=op.scope.scope,
-            card=Cardinality.ONE,
-        )
+        parent = RelParent(scope=op.scope.scope, card=Cardinality.ONE)
         fields = {}
         for name, f in op.scope.fields.items():
-            field = build_op(
-                f.syn,
-                parent,
-            )
-            if isinstance(field, Rel):
-                if field.card == Cardinality.SEQ:
-                    field = ExprAggregateRel.wrap(
-                        field,
-                        rel=field,
+            expr = build_op(f.syn, parent)
+            if isinstance(expr, Rel):
+                if expr.card == Cardinality.SEQ:
+                    expr = ExprAggregateRel(
+                        rel=expr,
                         func=None,
                         card=Cardinality.ONE,
                         scope=EmptyScope(),
                     )
                 else:
-                    field = ExprRel.wrap(field, rel=field)
-            fields[name] = Field(expr=field, name=name)
+                    expr = ExprRel.wrap(expr, rel=expr)
+            fields[name] = Field(expr=expr, name=name)
 
         expr = ExprRecord.wrap(op, fields=fields)
         return RelExpr.wrap(op, rel=op, expr=expr)
@@ -99,8 +98,8 @@ def build_record_op(op: Op):
     return op
 
 
-@singledispatch
-def to_op(syn: Syn, parent: Op):
+@functools.singledispatch
+def to_op(syn: ty.Optional[Syn], parent: Op):
     """ Produce an operation out of a query."""
     raise NotImplementedError(type(syn))  # pragma: no cover
 
@@ -117,58 +116,47 @@ def Nav_to_op(syn: Nav, parent: Op):
         table = parent.scope.tables[syn.name]
         return RelTable(
             table=table,
-            scope=TableScope(table=table, tables=parent.scope.tables),
+            scope=TableScope(table=table),
             card=Cardinality.SEQ,
         )
 
     elif isinstance(parent.scope, TableScope):
-        tables = parent.scope.tables
         table = parent.scope.table
-        fks = {fk.column.table.name: fk for fk in table.foreign_keys}
-        rev_fks = {
-            fk.parent.table.name: fk
-            for t in tables.values()
-            for fk in t.foreign_keys
-            if fk.column.table == table
-        }
 
         if syn.name in table.columns:
             column = table.columns[syn.name]
             next_scope = type_scope(column.type)
+            next_card = parent.card * Cardinality.ONE
             return RelExpr(
                 scope=next_scope,
-                card=parent.card * Cardinality.ONE,
+                card=next_card,
                 rel=parent,
                 expr=ExprColumn(
                     column=column,
                     scope=next_scope,
-                    card=parent.card * Cardinality.ONE,
+                    card=next_card,
                 ),
             )
 
-        elif syn.name in fks:
-            fk = fks[syn.name]
+        fk = parent.scope.foreign_keys.get(syn.name)
+        if fk:
             return RelJoin(
                 rel=parent,
                 fk=fk,
-                scope=TableScope(
-                    table=fk.column.table, tables=parent.scope.tables
-                ),
+                scope=TableScope(table=fk.column.table),
                 card=parent.card * Cardinality.ONE,
             )
 
-        elif syn.name in rev_fks:
-            fk = rev_fks[syn.name]
+        fk = parent.scope.rev_foreign_keys.get(syn.name)
+        if fk:
             return RelRevJoin(
                 rel=parent,
                 fk=fk,
-                scope=TableScope(
-                    table=fk.parent.table, tables=parent.scope.tables
-                ),
+                scope=TableScope(table=fk.parent.table),
                 card=parent.card * Cardinality.SEQ,
             )
-        else:
-            assert False, f"Unable to lookup {syn.name}"  # pragma: no cover
+
+        assert False, f"Unable to lookup {syn.name}"  # pragma: no cover
 
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
@@ -190,16 +178,26 @@ def Nav_to_op(syn: Nav, parent: Op):
         return ExprTransform.wrap(
             parent, expr=parent, transform=transform, scope=next_scope
         )
+
     elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
         assert (
             False
         ), f"Unable to lookup {syn.name} in empty scope"  # pragma: no cover
+
     else:
         assert False  # pragma: no cover
 
 
 @to_op.register
 def Select_to_op(syn: Select, parent: Op):
+    # In general select() results in ExprRecord but we don't create it here as
+    # the next syntax might make such op useless, consider the folloing cases:
+    #
+    #     region{name: name}.name
+    #     region{name: name}{region_name: name}
+    #
+    # See wrap_expr where we create ExprRecord instead for the selects
+    # which are "final".
     scope = RecordScope(scope=parent.scope, fields=syn.fields)
     return parent.replace(scope=scope)
 
@@ -253,18 +251,10 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert isinstance(parent, Rel), "filter(...): requires a rel"
         expr = to_op(
             expr,
-            RelParent(
-                scope=parent.scope,
-                card=Cardinality.ONE,
-            ),
+            RelParent(scope=parent.scope, card=Cardinality.ONE),
         )
         assert isinstance(expr, Expr)
-        return RelFilter.wrap(
-            parent,
-            rel=parent,
-            expr=expr,
-            card=parent.card,
-        )
+        return RelFilter.wrap(parent, rel=parent, expr=expr)
     else:
         assert False, f"Unknown {syn.name}(...) combinator"  # pragma: no cover
 
@@ -273,10 +263,7 @@ def Apply_to_op(syn: Apply, parent: Op):
 def Literal_to_op(syn: Literal, parent: Op):
     # If the parent is another expression, we just ignore it
     if isinstance(parent, Expr):
-        parent = RelVoid(
-            scope=EmptyScope(),
-            card=Cardinality.ONE,
-        )
+        parent = RelVoid(scope=EmptyScope(), card=Cardinality.ONE)
     return ExprConst(
         rel=parent,
         value=syn.value,
@@ -288,12 +275,10 @@ def Literal_to_op(syn: Literal, parent: Op):
 
 @to_op.register
 def Compose_to_op(syn: Compose, parent: Op):
-    parent = to_op(syn.a, parent)
-    parent = to_op(syn.b, parent)
-    return parent
+    return to_op(syn.b, to_op(syn.a, parent=parent))
 
 
-@singledispatch
+@functools.singledispatch
 def embed(v: sa.Type):
     """ Describe how to make a query out of a value."""
     raise NotImplementedError(  # pragma: no cover
