@@ -28,9 +28,9 @@ from .op import (
 def op_to_sql(op):
     """ Compile operations into SQL."""
     if isinstance(op, Rel):
-        return realize_select(rel_to_sql(op, From.empty()))
+        return realize_select(rel_to_sql(op, From.make(None)))
     elif isinstance(op, Expr):
-        return realize_select(expr_to_sql(op, From.empty()))
+        return realize_select(expr_to_sql(op, From.make(None)))
     else:
         assert False  # pragma: no cover
 
@@ -78,13 +78,9 @@ class From(Struct):
         return next, at
 
     @classmethod
-    def empty(cls):
-        return cls(current=None, at=None, existing={})
-
-    @classmethod
-    def make(cls, from_obj):
+    def make(cls, from_obj=None):
         assert not isinstance(from_obj, Join)
-        if not isinstance(from_obj, Alias):
+        if from_obj is not None and not isinstance(from_obj, Alias):
             from_obj = from_obj.alias()
         return From(current=from_obj, at=from_obj, existing={})
 
