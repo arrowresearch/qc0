@@ -28,9 +28,9 @@ from .op import (
 def op_to_sql(op):
     """ Compile operations into SQL."""
     if isinstance(op, Rel):
-        return realize_select(rel_to_sql(op, From.empty(), None))
+        return realize_select(rel_to_sql(op, From.empty()))
     elif isinstance(op, Expr):
-        return realize_select(expr_to_sql(op, From.empty(), None))
+        return realize_select(expr_to_sql(op, From.empty()))
     else:
         assert False  # pragma: no cover
 
@@ -52,9 +52,7 @@ class From(Struct):
             condition = sa.true()
         current = sa.join(self.current, right, condition)
         joins = self.joins
-        return From(
-            parent=self.parent, current=current, right=right, joins=joins
-        )
+        return self.replace(current=current, right=right, joins=joins)
 
     def join_parent(self, from_obj, join_on):
         # NOTE(andreypopp): this is a hacky way to dedup joins, need to consider
@@ -68,18 +66,14 @@ class From(Struct):
         )
         current = sa.join(self.current, right, condition)
         joins = {**self.joins, key: right}
-        return From(
-            parent=self.parent, current=current, right=right, joins=joins
-        )
+        return self.replace(current=current, right=right, joins=joins)
 
     def join_lateral(self, right):
         condition = sa.true()
         right = right.lateral()
         current = sa.outerjoin(self.current, right, condition)
         joins = self.joins
-        return From(
-            parent=self.parent, current=current, right=right, joins=joins
-        )
+        return self.replace(current=current, right=right, joins=joins)
 
     @classmethod
     def empty(cls):
@@ -106,25 +100,25 @@ def realize_select(rel):
 
 
 @singledispatch
-def rel_to_sql(rel: Rel, from_obj, parent):
+def rel_to_sql(rel: Rel, from_obj):
     raise NotImplementedError(  # pragma: no cover
         f"rel_to_sql({type(rel).__name__})"
     )
 
 
 @rel_to_sql.register
-def RelVoid_to_sql(rel: RelVoid, from_obj, parent):
+def RelVoid_to_sql(rel: RelVoid, from_obj):
     return None, from_obj
 
 
 @rel_to_sql.register
-def RelTable_to_sql(rel: RelTable, from_obj, parent):
+def RelTable_to_sql(rel: RelTable, from_obj):
     return None, From.make(rel.table)
 
 
 @rel_to_sql.register
-def RelJoin_to_sql(rel: RelJoin, from_obj, parent):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
+def RelJoin_to_sql(rel: RelJoin, from_obj):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
     table = rel.fk.column.table
     condition = lambda left, right: (
         left.columns[rel.fk.parent.name] == right.columns[rel.fk.column.name]
@@ -139,21 +133,20 @@ def RelJoin_to_sql(rel: RelJoin, from_obj, parent):
 
 
 @rel_to_sql.register
-def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, parent):
+def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
     if isinstance(rel.rel, RelParent):
-        assert parent is not None
         table = rel.fk.parent.table.alias()
         sel = (
             table.select()
-            .correlate(parent)
+            .correlate(from_obj.parent)
             .where(
                 table.columns[rel.fk.parent.name]
-                == parent.columns[rel.fk.column.name]
+                == from_obj.parent.columns[rel.fk.column.name]
             )
         )
         return None, From.make(sel)
     else:
-        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
+        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         table = rel.fk.parent.table
         condition = lambda left, right: (
             left.columns[rel.fk.column.name]
@@ -163,8 +156,8 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, parent):
 
 
 @rel_to_sql.register
-def RelTake_to_sql(rel: RelTake, from_obj, parent):
-    val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
+def RelTake_to_sql(rel: RelTake, from_obj):
+    val, from_obj = rel_to_sql(rel.rel, from_obj)
     sel = (
         sa.select([from_obj.right], from_obj=from_obj.current)
         .limit(rel.take)
@@ -175,12 +168,12 @@ def RelTake_to_sql(rel: RelTake, from_obj, parent):
 
 
 @rel_to_sql.register
-def RelFilter_to_sql(rel: RelFilter, from_obj, parent):
-    val, from_obj = rel_to_sql(rel.rel, from_obj, parent)
+def RelFilter_to_sql(rel: RelFilter, from_obj):
+    val, from_obj = rel_to_sql(rel.rel, from_obj)
     # reparent
     prev_parent, prev_right = from_obj.parent, from_obj.right
     from_obj = from_obj.replace(parent=from_obj.right)
-    expr, from_obj = expr_to_sql(rel.expr, from_obj, parent=from_obj.parent)
+    expr, from_obj = expr_to_sql(rel.expr, from_obj)
     from_obj = from_obj.replace(right=prev_right, parent=prev_parent)
     sel = (
         sa.select([from_obj.right], from_obj=from_obj.current)
@@ -192,46 +185,44 @@ def RelFilter_to_sql(rel: RelFilter, from_obj, parent):
 
 
 @rel_to_sql.register
-def RelParent_to_sql(rel: RelParent, from_obj, parent):
+def RelParent_to_sql(rel: RelParent, from_obj):
     return None, from_obj
 
 
 @rel_to_sql.register
-def RelExpr_to_sql(rel: RelExpr, from_obj, parent):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj, parent=parent)
+def RelExpr_to_sql(rel: RelExpr, from_obj):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
     assert value is None
     # reparent
     prev_right, prev_parent = from_obj.right, from_obj.parent
     from_obj = from_obj.replace(parent=from_obj.right)
-    expr, from_obj = expr_to_sql(
-        rel.expr, from_obj=from_obj, parent=from_obj.parent
-    )
+    expr, from_obj = expr_to_sql(rel.expr, from_obj=from_obj)
     from_obj = from_obj.replace(right=prev_right, parent=prev_parent)
     return expr, from_obj
 
 
 @singledispatch
-def expr_to_sql(expr: Expr, from_obj, parent):
+def expr_to_sql(expr: Expr, from_obj):
     raise NotImplementedError(  # pragma: no cover
         f"expr_to_sql({type(expr).__name__})"
     )
 
 
 @expr_to_sql.register
-def ExprRel_to_sql(op: ExprRel, from_obj, parent):
-    value, from_obj = rel_to_sql(op.rel, from_obj=from_obj, parent=parent)
+def ExprRel_to_sql(op: ExprRel, from_obj):
+    value, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     return value, from_obj
 
 
 @expr_to_sql.register
-def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj, parent):
-    value, inner_from_obj = rel_to_sql(op.rel, from_obj=None, parent=parent)
+def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj):
+    value, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     if op.func is None:
         value = sa.func.jsonb_agg(value).label("value")
     else:
         value = getattr(sa.func, op.func)(value).label("value")
     sel = realize_select((value, inner_from_obj))
-    if parent is not None:
+    if from_obj.parent is not None:
         from_obj = from_obj.join_lateral(sel)
     else:
         from_obj = from_obj.join(sel)
@@ -239,25 +230,26 @@ def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj, parent):
 
 
 @expr_to_sql.register
-def ExprRecord_to_sql(op: ExprRecord, from_obj, parent):
+def ExprRecord_to_sql(op: ExprRecord, from_obj):
     args = []
+    parent = from_obj.parent
     for field in op.fields.values():
         args.append(sa.literal(field.name))
         expr, from_obj = expr_to_sql(
-            field.expr, from_obj=from_obj, parent=parent
+            field.expr, from_obj=from_obj.replace(parent=parent)
         )
         args.append(expr)
     return sa.func.jsonb_build_object(*args), from_obj
 
 
 @expr_to_sql.register
-def ExprColumn_to_sql(op: ExprColumn, from_obj, parent):
+def ExprColumn_to_sql(op: ExprColumn, from_obj):
     assert from_obj is not None
     return sa.column(op.column.name, _selectable=from_obj.parent), from_obj
 
 
 @expr_to_sql.register
-def ExprIdentity_to_sql(op: ExprIdentity, from_obj, parent):
+def ExprIdentity_to_sql(op: ExprIdentity, from_obj):
     assert from_obj is not None
     pk = []
     for col in op.table.primary_key.columns:
@@ -266,21 +258,21 @@ def ExprIdentity_to_sql(op: ExprIdentity, from_obj, parent):
 
 
 @expr_to_sql.register
-def ExprConst_to_sql(op: ExprConst, from_obj, parent):
-    _, from_obj = rel_to_sql(op.rel, from_obj, parent)
+def ExprConst_to_sql(op: ExprConst, from_obj):
+    _, from_obj = rel_to_sql(op.rel, from_obj)
     return op.embed(op.value), from_obj
 
 
 @expr_to_sql.register
-def ExprTransform_to_sql(op: ExprTransform, from_obj, parent):
-    expr, from_obj = expr_to_sql(op.expr, from_obj, parent)
+def ExprTransform_to_sql(op: ExprTransform, from_obj):
+    expr, from_obj = expr_to_sql(op.expr, from_obj)
     return op.transform(expr), from_obj
 
 
 @expr_to_sql.register
-def ExprBinOp_to_sql(op: ExprBinOp, from_obj, parent):
-    a, from_obj = expr_to_sql(op.a, from_obj, parent)
-    b, from_obj = expr_to_sql(op.b, from_obj, parent)
+def ExprBinOp_to_sql(op: ExprBinOp, from_obj):
+    a, from_obj = expr_to_sql(op.a, from_obj)
+    b, from_obj = expr_to_sql(op.b, from_obj)
     if op.func == "__eq__":
         return a == b, from_obj
     if op.func == "__ne__":

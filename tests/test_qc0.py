@@ -200,7 +200,7 @@ def test_select_select_nav_nav_ok(snapshot):
 
 def test_select_select_multiple_ok(snapshot):
     query = q.select(nation_names=q.nation.name, region_names=q.region.name)
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('nation_names', anon_1.value, 'region_names', anon_2.value) AS value
         FROM (SELECT jsonb_agg(nation_1.name) AS value
@@ -310,7 +310,7 @@ def test_back_nav_region_nation_customer_ok(snapshot):
 
 def test_select_back_nav_ok(snapshot):
     query = q.region.select(nation_names=q.nation.name)
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('nation_names', anon_1.value) AS value
         FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT jsonb_agg(anon_2.name) AS value
