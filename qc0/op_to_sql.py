@@ -244,13 +244,11 @@ def ExprRecord_to_sql(op: ExprRecord, from_obj):
 
 @expr_to_sql.register
 def ExprColumn_to_sql(op: ExprColumn, from_obj):
-    assert from_obj is not None
     return sa.column(op.column.name, _selectable=from_obj.parent), from_obj
 
 
 @expr_to_sql.register
 def ExprIdentity_to_sql(op: ExprIdentity, from_obj):
-    assert from_obj is not None
     pk = []
     for col in op.table.primary_key.columns:
         pk.append(from_obj.parent.columns[col.name])
