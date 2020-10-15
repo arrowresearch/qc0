@@ -791,3 +791,16 @@ def test_json_literal_nested_nav_ok(snapshot):
         """
     )
     assert_result_matches(snapshot, query)
+
+
+def test_select_filter_end(snapshot):
+    query = q.region.select(n=q.name).filter(q.n == q.val("AFRICA"))
+    assert run(query) == n(
+        """
+        SELECT jsonb_build_object('n', anon_1.name) AS value
+        FROM (SELECT region_1.id AS id, region_1.name AS name, region_1.comment AS comment
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA') AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)

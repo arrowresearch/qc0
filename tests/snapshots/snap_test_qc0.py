@@ -515,6 +515,11 @@ snapshots[
 """
 
 snapshots[
+    "test_select_filter_end 1"
+] = """- n: AFRICA
+"""
+
+snapshots[
     "test_select_nav_select_nav_column_ok 1"
 ] = """- AFRICA
 - AMERICA
