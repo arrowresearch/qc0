@@ -109,6 +109,12 @@ class Q:
         }
         return self.__class__(Compose(self.syn, Select(fields=fields)))
 
+    def group(self, **fields):
+        fields = {
+            name: Field(syn=syn.syn, name=name) for name, syn in fields.items()
+        }
+        return self.__class__(Compose(self.syn, Apply("group", fields)))
+
     def val(self, v):
         val = make_value(v)
         if self.syn is None:

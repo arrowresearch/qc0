@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import List, Optional, Any, Callable
+from typing import Optional, Any, Callable, Dict
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct
 from .scope import Scope, Cardinality
@@ -21,6 +21,14 @@ class Op(Struct):
 
     scope: Scope
     card: Cardinality
+
+    def __yaml__(self):
+        rep = super(Op, self).__yaml__()
+        if "scope" in rep:
+            rep.pop("scope")
+        if "card" in rep:
+            rep.pop("card")
+        return rep
 
     @classmethod
     def wrap(cls, op: Op, **kw):
@@ -54,6 +62,10 @@ class RelParent(Rel):
     pass
 
 
+class RelAggregateParent(Rel):
+    pass
+
+
 class RelExpr(Rel):
     rel: Rel
     expr: Expr
@@ -69,16 +81,26 @@ class RelFilter(Rel):
     expr: Expr
 
 
+class RelGroup(Rel):
+    rel: Rel
+    fields: Dict[str, Field]
+    aggregates: Dict[str, Field]
+
+
 class Expr(Op):
     """ Base class for ops which expr a new value."""
 
 
 class ExprRecord(Expr):
-    fields: List[Field]
+    fields: Dict[str, Field]
 
 
 class ExprColumn(Expr):
     column: Column
+
+
+class ExprRaw(Expr):
+    raw: Any
 
 
 class ExprIdentity(Expr):
@@ -92,17 +114,18 @@ class ExprRel(Expr):
 class ExprAggregateRel(Expr):
     rel: Rel
     func: Optional[str]
+    unit: Any
 
 
 class ExprConst(Expr):
     rel: Rel
     value: Any
-    embed: Callable[Any, Any]
+    embed: Callable[[Any], Any]
 
 
 class ExprTransform(Expr):
     expr: Expr
-    transform: Callable[Any, Any]
+    transform: Callable[[Any], Any]
 
 
 class ExprBinOp(Expr):

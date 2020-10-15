@@ -71,6 +71,9 @@ class TableScope(Scope):
             if fk.column.table == self.table
         }
 
+    def __yaml__(self):
+        return {"table": str(self.table.name)}
+
 
 class RecordScope(Scope):
     """
@@ -78,7 +81,29 @@ class RecordScope(Scope):
     """
 
     scope: Scope
-    fields: List[Field]
+    fields: Dict[str, Field]
+
+    def __yaml__(self):
+        return {"scope": self.scope, "fields": list(self.fields)}
+
+
+class GroupScope(Scope):
+    """
+    A scope created by grouping.
+    """
+
+    scope: Scope
+    fields: Dict[str, Field]
+    aggregates: Dict[str, Any]
+
+    def add_aggregate(self, expr):
+        idx = len(self.aggregates)
+        name = f"aggr_{idx}"
+        self.aggregates[name] = expr
+        return name
+
+    def __yaml__(self):
+        return {"scope": self.scope, "fields": list(self.fields)}
 
 
 class SyntheticScope(Scope):

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 from functools import singledispatch
 import sqlalchemy as sa
 from sqlalchemy.sql.selectable import Selectable, Join, Alias
@@ -10,9 +10,11 @@ from .op import (
     RelJoin,
     RelRevJoin,
     RelParent,
+    RelAggregateParent,
     RelExpr,
     RelTake,
     RelFilter,
+    RelGroup,
     Expr,
     ExprRel,
     ExprAggregateRel,
@@ -22,15 +24,19 @@ from .op import (
     ExprConst,
     ExprBinOp,
     ExprTransform,
+    ExprRaw,
 )
 
 
 def op_to_sql(op):
     """ Compile operations into SQL."""
+    from_obj = From.make(None)
     if isinstance(op, Rel):
-        return realize_select(rel_to_sql(op, From.make(None)))
+        value, from_obj = rel_to_sql(op, from_obj)
+        return from_obj.to_select(value)
     elif isinstance(op, Expr):
-        return realize_select(expr_to_sql(op, From.make(None)))
+        value, from_obj = expr_to_sql(op, from_obj)
+        return from_obj.to_select(value)
     else:
         assert False  # pragma: no cover
 
@@ -39,32 +45,38 @@ class From(Struct):
     existing: Dict[any, Selectable]
     current: Selectable
     at: Selectable
+    group_by_columns: List[str] = None
 
-    def join_at(self, from_obj, join_on=None):
+    def __post_init__(self):
+        if self.group_by_columns is None:
+            object.__setattr__(self, "group_by_columns", ())
+
+    def join_at(self, from_obj, *by, outer=False):
         if self.current is None:
-            assert join_on is None
+            assert not by
             from_obj = from_obj.alias()
 
             return self.make(from_obj), from_obj
 
         # NOTE(andreypopp): this is a hacky way to dedup existing, need to consider
         # another approach based on structural query equality...
-        key = (
-            self.at.element if self.at is not None else None,
-            from_obj,
-            join_on,
-        )
+        key = (self.at.element if self.at is not None else None, from_obj, by)
         if key in self.existing:
             at = self.existing[key]
             return self.replace(at=at), at
 
         at = from_obj.alias()
-        condition = (
-            self.at.columns[join_on[0]] == at.columns[join_on[1]]
-            if join_on
-            else sa.true()
-        )
-        current = sa.join(self.current, at, condition)
+        if by:
+            (left, right), *rest = by
+            condition = self.at.columns[left] == at.columns[right]
+            for left, right in rest:
+                condition = condition & (
+                    self.at.columns[left] == at.columns[right]
+                )
+        else:
+            condition = sa.true()
+        join = sa.outerjoin if outer else sa.join
+        current = join(self.current, at, condition)
         next = self.replace(
             current=current, at=at, existing={**self.existing, key: at}
         )
@@ -84,17 +96,17 @@ class From(Struct):
             from_obj = from_obj.alias()
         return From(current=from_obj, at=from_obj, existing={})
 
-
-def realize_select(rel):
-    value, from_obj = rel
-    if from_obj is None:
-        return sa.select([value.label("value")])
-    elif value is None:
-        return from_obj.current.select()
-    else:
-        return sa.select(
-            [value.label("value")], from_obj=from_obj.current
-        ).alias()
+    def to_select(self, value):
+        from_obj = self.current
+        if from_obj is None:
+            return sa.select([*self.group_by_columns, value.label("value")])
+        elif value is None:
+            return from_obj.select()
+        else:
+            return sa.select(
+                [*self.group_by_columns, value.label("value")],
+                from_obj=from_obj,
+            )
 
 
 @singledispatch
@@ -111,6 +123,8 @@ def RelVoid_to_sql(rel: RelVoid, from_obj):
 
 @rel_to_sql.register
 def RelTable_to_sql(rel: RelTable, from_obj):
+    # TODO(andreypopp): try to uncomment and see why/if we have failures
+    # assert from_obj.current is None
     return None, From.make(rel.table)
 
 
@@ -137,6 +151,13 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
             )
         )
         return None, From.make(sel)
+    elif isinstance(rel.rel, RelAggregateParent):
+        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
+        table = rel.fk.parent.table
+        from_obj, _ = from_obj.join_at(
+            table, (rel.fk.column.name, rel.fk.parent.name)
+        )
+        return value, from_obj
     else:
         value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         table = rel.fk.parent.table
@@ -150,7 +171,10 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
 def RelTake_to_sql(rel: RelTake, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
     sel = (
-        sa.select([from_obj.at], from_obj=from_obj.current)
+        sa.select(
+            [*from_obj.group_by_columns, from_obj.at],
+            from_obj=from_obj.current,
+        )
         .limit(rel.take)
         .alias()
     )
@@ -165,13 +189,24 @@ def RelFilter_to_sql(rel: RelFilter, from_obj):
     prev_at = from_obj.at
     expr, inner_from_obj = expr_to_sql(rel.expr, from_obj)
     from_obj = from_obj.replace(current=inner_from_obj.current)
-    sel = sa.select([prev_at], from_obj=from_obj.current).where(expr).alias()
+    sel = (
+        sa.select(
+            [*from_obj.group_by_columns, prev_at], from_obj=from_obj.current
+        )
+        .where(expr)
+        .alias()
+    )
     from_obj = From.make(sel)
     return val, from_obj
 
 
 @rel_to_sql.register
 def RelParent_to_sql(rel: RelParent, from_obj):
+    return None, from_obj
+
+
+@rel_to_sql.register
+def RelAggregateParent_to_sql(rel: RelAggregateParent, from_obj):
     return None, from_obj
 
 
@@ -183,6 +218,76 @@ def RelExpr_to_sql(rel: RelExpr, from_obj):
     expr, inner_from_obj = expr_to_sql(rel.expr, from_obj=from_obj)
     from_obj = from_obj.replace(current=inner_from_obj.current)
     return expr, from_obj
+
+
+@rel_to_sql.register
+def RelGroup_to_sql(rel: RelGroup, from_obj):
+    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
+    assert value is None
+
+    # TODO(andreypopp): might need to convert this to CTE for complex
+    # expressions
+    initial_from_obj = from_obj
+
+    def build_kernel():
+        from_obj = initial_from_obj
+        at = from_obj.at
+        columns = []
+        for field in rel.fields.values():
+            expr, from_obj = expr_to_sql(
+                field.expr,
+                from_obj=from_obj.replace(at=at),
+            )
+            columns.append(expr.label(field.name))
+        columns = from_obj.group_by_columns + tuple(columns)
+        return columns, from_obj.replace(at=at, group_by_columns=columns)
+
+    columns, from_obj = build_kernel()
+    sel = (
+        sa.select(
+            [*from_obj.group_by_columns, *columns], from_obj=from_obj.current
+        )
+        .group_by(*from_obj.group_by_columns)
+        .alias()
+    )
+    from_obj = From.make(sel)
+
+    if not rel.aggregates:
+        return None, from_obj
+
+    result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
+    for name, expr in rel.aggregates.items():
+        columns, kernel = build_kernel()
+        value, inner_from_obj = rel_to_sql(expr.rel, from_obj=kernel)
+        # aggregate
+        if expr.func is None:
+            value = sa.func.jsonb_agg(value)
+        else:
+            value = getattr(sa.func, expr.func)(value)
+
+        if kernel.current in inner_from_obj.current._from_objects:
+            cols = columns
+        else:
+            cols = [inner_from_obj.current.columns[c.name] for c in columns]
+        inner_sel = (
+            sa.select(
+                [*cols, value.label("value")],
+                from_obj=inner_from_obj.current,
+            )
+            .group_by(*cols)
+            .alias()
+        )
+        from_obj, inner_at = from_obj.join_at(
+            inner_sel, *((c.name, c.name) for c in columns), outer=True
+        )
+        result_columns.append(
+            sa.func.coalesce(inner_at.c.value, expr.unit).label(name)
+        )
+
+    from_obj = From.make(
+        sa.select(result_columns, from_obj=from_obj.current).alias()
+    )
+    return None, from_obj
 
 
 @singledispatch
@@ -205,7 +310,7 @@ def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj):
         value = sa.func.jsonb_agg(value).label("value")
     else:
         value = getattr(sa.func, op.func)(value).label("value")
-    sel = realize_select((value, inner_from_obj))
+    sel = inner_from_obj.to_select(value)
     if from_obj.at is not None:
         from_obj, at = from_obj.join_lateral(sel)
     else:
@@ -224,6 +329,11 @@ def ExprRecord_to_sql(op: ExprRecord, from_obj):
         )
         args.append(expr)
     return sa.func.jsonb_build_object(*args), from_obj
+
+
+@expr_to_sql.register
+def ExprRaw_to_sql(op: ExprRaw, from_obj):
+    return op.raw, from_obj
 
 
 @expr_to_sql.register

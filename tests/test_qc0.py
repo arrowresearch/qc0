@@ -804,3 +804,208 @@ def test_select_filter_end(snapshot):
         """
     )
     assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(reg=q.reg)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('reg', anon_1.reg) AS value
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_region_by_nation_select_ok(snapshot):
+    query = q.region.group(reg=q.nation.name.count()).select(field=q.reg)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('field', anon_1.reg) AS value
+        FROM (SELECT anon_2.value AS reg
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT count(anon_3.name) AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_3) AS anon_2 ON true GROUP BY anon_2.value) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_aggr_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(
+        ref=q.reg,
+        count=q._.name.count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('ref', anon_1.reg, 'count', anon_1.aggr_0) AS value
+        FROM (SELECT anon_2.reg AS reg, coalesce(anon_3.value, 0) AS aggr_0
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS reg, count(nation_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_aggr_link_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(
+        ref=q.reg,
+        customer_count=q._.customer.count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('ref', anon_1.reg, 'customer_count', anon_1.aggr_0) AS value
+        FROM (SELECT anon_2.reg AS reg, coalesce(anon_3.value, 0) AS aggr_0
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS reg, count(*) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id JOIN customer AS customer_1 ON nation_1.id = customer_1.nation_id GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_aggr_col_and_link_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(
+        ref=q.reg,
+        nation_count=q._.name.count(),
+        customer_count=q._.customer.count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('ref', anon_1.reg, 'nation_count', anon_1.aggr_0, 'customer_count', anon_1.aggr_1) AS value
+        FROM (SELECT anon_2.reg AS reg, coalesce(anon_3.value, 0) AS aggr_0, coalesce(anon_4.value, 0) AS aggr_1
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS reg, count(nation_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg LEFT OUTER JOIN (SELECT region_3.name AS reg, count(*) AS value
+        FROM nation AS nation_1 JOIN region AS region_3 ON nation_1.region_id = region_3.id JOIN customer AS customer_1 ON nation_1.id = customer_1.nation_id GROUP BY region_3.name) AS anon_4 ON anon_3.reg = anon_4.reg) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_aggr_filter_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(
+        reg=q.reg,
+        count=q._.filter(q.name == q.val("KENYA")).count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('reg', anon_1.reg, 'count', anon_1.aggr_0) AS value
+        FROM (SELECT anon_2.reg AS reg, coalesce(anon_3.value, 0) AS aggr_0
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT anon_4.reg AS reg, count(*) AS value
+        FROM (SELECT region_2.name AS reg, nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id
+        WHERE nation_1.name = 'KENYA') AS anon_4 GROUP BY anon_4.reg) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_nation_by_region_select_aggr_array_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).select(reg=q.reg, all=q._.name)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('reg', anon_1.reg, 'all', anon_1.aggr_0) AS value
+        FROM (SELECT anon_2.reg AS reg, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS reg, jsonb_agg(nation_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_then_nav_to_field_ok(snapshot):
+    query = q.nation.group(reg=q.region.name).reg
+    assert run(query, print_op=True) == n(
+        """
+        SELECT anon_1.reg AS value
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_ok(snapshot):
+    query = q.nation.group(reg=q.region.name)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('reg', anon_1.reg) AS value
+        FROM (SELECT region_1.name AS reg
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_select_nav_ok(snapshot):
+    query = q.nation.group(n=q.region.name)._.count()
+    assert run(query, print_op=True) == n(
+        """
+        SELECT anon_1.aggr_0 AS value
+        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, 0) AS aggr_0
+        FROM (SELECT region_1.name AS n
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, count(*) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_select_nav_name_ok(snapshot):
+    query = q.nation.group(n=q.region.name)._.name
+    assert run(query, print_op=True) == n(
+        """
+        SELECT anon_1.aggr_0 AS value
+        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+        FROM (SELECT region_1.name AS n
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, jsonb_agg(nation_1.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_group_select_nav_link_name_ok(snapshot):
+    query = q.nation.group(n=q.region.name)._.region.name
+    assert run(query, print_op=True) == n(
+        """
+        SELECT anon_1.aggr_0 AS value
+        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+        FROM (SELECT region_1.name AS n
+        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, jsonb_agg(region_2.name) AS value
+        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_nested_group(snapshot):
+    query = q.nation.group(r1=q.name.substring(1, 1)).select(
+        r1=q.r1,
+        names=q._.name,
+        nested=(
+            q._.group(r2=q.name.substring(1, 2)).select(
+                r2=q.r2, names2=q._.name
+            )
+        ),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('r1', anon_1.r1, 'names', anon_1.aggr_0, 'nested', anon_1.aggr_1) AS value
+        FROM (SELECT anon_2.r1 AS r1, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0, coalesce(anon_4.value, CAST('[]' AS JSONB)) AS aggr_1
+        FROM (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1
+        FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1)) AS anon_2 LEFT OUTER JOIN (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1, jsonb_agg(nation_1.name) AS value
+        FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1)) AS anon_3 ON anon_2.r1 = anon_3.r1 LEFT OUTER JOIN (SELECT anon_5.r1 AS r1, jsonb_agg(jsonb_build_object('r2', anon_5.r2, 'names2', anon_5.aggr_0)) AS value
+        FROM (SELECT anon_6.r1 AS r1, anon_6.r2 AS r2, coalesce(anon_7.value, CAST('[]' AS JSONB)) AS aggr_0
+        FROM (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1, SUBSTRING(nation_1.name FROM 1 FOR 2) AS r2
+        FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1), SUBSTRING(nation_1.name FROM 1 FOR 2)) AS anon_6 LEFT OUTER JOIN (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1, SUBSTRING(nation_1.name FROM 1 FOR 2) AS r2, jsonb_agg(nation_1.name) AS value
+        FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1), SUBSTRING(nation_1.name FROM 1 FOR 2)) AS anon_7 ON anon_6.r1 = anon_7.r1 AND anon_6.r2 = anon_7.r2) AS anon_5 GROUP BY anon_5.r1) AS anon_4 ON anon_3.r1 = anon_4.r1) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)

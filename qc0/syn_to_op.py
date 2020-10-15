@@ -21,6 +21,7 @@ from .scope import (
     UnivScope,
     TableScope,
     RecordScope,
+    GroupScope,
     SyntheticScope,
     type_scope,
 )
@@ -40,9 +41,11 @@ from .op import (
     RelJoin,
     RelRevJoin,
     RelParent,
+    RelAggregateParent,
     RelExpr,
     RelTake,
     RelFilter,
+    RelGroup,
     Expr,
     ExprRel,
     ExprAggregateRel,
@@ -66,35 +69,63 @@ def syn_to_op(syn: Syn, meta: sa.MetaData):
 
 
 def build_op(syn: Syn, parent: Op):
-    op = to_op(syn, parent=parent)
-    op = wrap_expr(op)
+    op, k = norm_to_op(syn, parent=parent)
+    op = k(build_op_expr(op))
     return op
 
 
-def wrap_expr(op: Op):
-    if isinstance(op.scope, RecordScope):
-        parent = RelParent(scope=op.scope.scope, card=Cardinality.ONE)
-        fields = {}
-        for name, f in op.scope.fields.items():
-            expr = build_op(f.syn, parent)
-            if isinstance(expr, Rel):
-                if expr.card == Cardinality.SEQ:
-                    expr = ExprAggregateRel(
-                        rel=expr,
-                        func=None,
-                        card=Cardinality.ONE,
-                        scope=EmptyScope(),
-                    )
-                else:
-                    expr = ExprRel.wrap(expr, rel=expr)
-            fields[name] = Field(expr=expr, name=name)
+def build_op_expr(op: Op):
+    if not (isinstance(op, RelExpr) or isinstance(op, Expr)):
+        if isinstance(op.scope, RecordScope):
+            parent = RelParent(
+                scope=op.scope.scope,
+                card=Cardinality.ONE,
+            )
+            fields = {}
+            for name, f in op.scope.fields.items():
+                expr = build_op(f.syn, parent)
+                if isinstance(expr, Rel):
+                    if expr.card == Cardinality.SEQ:
+                        expr = ExprAggregateRel(
+                            rel=expr,
+                            func=None,
+                            unit=embed(sa.dialects.postgresql.JSONB())([]),
+                            card=Cardinality.ONE,
+                            scope=EmptyScope(),
+                        )
+                    else:
+                        expr = ExprRel.wrap(expr, rel=expr)
+                fields[name] = Field(expr=expr, name=name)
 
-        expr = ExprRecord.wrap(op, fields=fields)
-        return RelExpr.wrap(op, rel=op, expr=expr)
-    if isinstance(op.scope, TableScope):
-        scope = EmptyScope()
-        expr = ExprIdentity.wrap(op, table=op.scope.table, scope=scope)
-        return RelExpr.wrap(op, rel=op, expr=expr, scope=scope)
+            expr = ExprRecord.wrap(op, fields=fields)
+            return RelExpr.wrap(op, rel=op, expr=expr)
+        if isinstance(op.scope, TableScope):
+            scope = EmptyScope()
+            expr = ExprIdentity.wrap(op, table=op.scope.table, scope=scope)
+            return RelExpr.wrap(op, rel=op, expr=expr, scope=scope)
+        if isinstance(op.scope, GroupScope):
+            # From GroupScope we select
+            # relation were grouped by:
+            #
+            #   relation.group(x: ..., y: ...)
+            #
+            # becomes:
+            #
+            #   relation.group(x: ..., y: ...) {x, y}
+            #
+            fields = {}
+            for name, f in op.scope.fields.items():
+                fields[name] = Field(
+                    name=name,
+                    expr=ExprColumn(
+                        column=sa.column(name),
+                        scope=EmptyScope(),
+                        card=Cardinality.ONE,
+                    ),
+                )
+            expr = ExprRecord.wrap(op, fields=fields)
+            return RelExpr.wrap(op, rel=op, expr=expr)
+        assert False, f"unable to build an expr at this scope: {op!r}"
     return op
 
 
@@ -102,6 +133,23 @@ def wrap_expr(op: Op):
 def to_op(syn: ty.Optional[Syn], parent: Op):
     """ Produce an operation out of a query."""
     raise NotImplementedError(type(syn))  # pragma: no cover
+
+
+def run_to_op(syn, parent):
+    res = to_op(syn, parent)
+    if isinstance(res, tuple):
+        op, k = res
+        return k(op)
+    else:
+        return res
+
+
+def norm_to_op(syn, parent):
+    res = to_op(syn, parent)
+    if isinstance(res, tuple):
+        return res
+    else:
+        return res, lambda op: op
 
 
 @to_op.register
@@ -161,9 +209,56 @@ def Nav_to_op(syn: Nav, parent: Op):
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
             field = parent.scope.fields[syn.name]
-            return to_op(
+            return run_to_op(
                 field.syn, parent=parent.replace(scope=parent.scope.scope)
             )
+        else:
+            names = ", ".join(parent.scope.fields)  # pragma: no cover
+            assert (  # pragma: no cover
+                False
+            ), f"Unable to lookup {syn.name} in record scope, names: {names}"
+
+    elif isinstance(parent.scope, GroupScope):
+        if syn.name == "_":
+
+            def wrap(expr):
+                if not isinstance(expr, ExprAggregateRel):
+                    expr = ExprAggregateRel(
+                        rel=expr,
+                        func=None,
+                        unit=embed(sa.dialects.postgresql.JSONB())([]),
+                        scope=expr.scope,
+                        card=parent.card * Cardinality.ONE,
+                    )
+                name = parent.scope.add_aggregate(expr)
+                expr = ExprColumn.wrap(expr, column=sa.column(name))
+                return RelExpr.wrap(
+                    expr,
+                    rel=parent,
+                    expr=expr,
+                    card=parent.card * Cardinality.ONE,
+                )
+
+            return (
+                RelAggregateParent(
+                    scope=parent.scope.scope,
+                    card=Cardinality.SEQ,
+                ),
+                wrap,
+            )
+        if syn.name in parent.scope.fields:
+            assert isinstance(parent, Rel)
+            field = parent.scope.fields[syn.name]
+            # TODO(andreypopp): determine scope by
+            # column type here
+            scope = EmptyScope()
+            card = parent.card * Cardinality.ONE
+            expr = ExprColumn(
+                scope=scope,
+                card=card,
+                column=sa.column(syn.name),
+            )
+            return RelExpr.wrap(expr, rel=parent, expr=expr)
         else:
             names = ", ".join(parent.scope.fields)  # pragma: no cover
             assert (  # pragma: no cover
@@ -197,7 +292,7 @@ def Select_to_op(syn: Select, parent: Op):
     #     region{name: name}.name
     #     region{name: name}{region_name: name}
     #
-    # See wrap_expr where we create ExprRecord instead for the selects
+    # See build_op_expr where we create ExprRecord instead for the selects
     # which are "final".
     scope = RecordScope(scope=parent.scope, fields=syn.fields)
     return parent.replace(scope=scope)
@@ -210,9 +305,20 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert isinstance(parent, Rel), f"{syn.name}(...): requires a rel"
         assert (
             parent.card >= Cardinality.SEQ
-        ), "{syn.name}(...): expected a sequence of items"
+        ), f"{syn.name}(...): expected a sequence of items"
+        # TODO(andreypopp): need to introduce proper function sigs
+        unit_by_name = {
+            "count": 0,
+            "exists": False,
+            "sum": 0,
+        }
         return ExprAggregateRel.wrap(
-            parent, rel=parent, func=syn.name, scope=EmptyScope()
+            parent,
+            rel=parent,
+            func=syn.name,
+            unit=unit_by_name[syn.name],
+            scope=EmptyScope(),
+            card=Cardinality.ONE,
         )
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
@@ -233,10 +339,10 @@ def Apply_to_op(syn: Apply, parent: Op):
             len(syn.args) == 2
         ), f"{syn.name}(...): expected exactly two arguments"
         a, b = syn.args
-        a = to_op(a, parent)
+        a = run_to_op(a, parent)
         if isinstance(a, Rel):
             a = ExprRel.wrap(a, rel=a)
-        b = to_op(b, parent)
+        b = run_to_op(b, parent)
         if isinstance(b, Rel):
             b = ExprRel.wrap(b, rel=b)
         return ExprBinOp.wrap(
@@ -250,12 +356,59 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]
         assert isinstance(parent, Rel), "filter(...): requires a rel"
-        expr = to_op(
+        expr = run_to_op(
             expr,
             RelParent(scope=parent.scope, card=Cardinality.ONE),
         )
         assert isinstance(expr, Expr)
         return RelFilter.wrap(parent, rel=parent, expr=expr)
+    elif syn.name == "group":
+        assert isinstance(
+            parent, Rel
+        ), f"group(...): requires a rel, got {type(parent)}"
+        assert (
+            parent.card == Cardinality.SEQ
+        ), "group(...): requires a plural rel"
+        # TODO(andreypopp): fix usage of syn.args here
+        scope = GroupScope(scope=parent.scope, fields=syn.args, aggregates={})
+        field_parent = RelParent(
+            scope=parent.scope,
+            card=Cardinality.ONE,
+        )
+        fields = {}
+        for name, f in syn.args.items():
+            expr = run_to_op(f.syn, field_parent)
+            if isinstance(expr, Rel):
+                if expr.card == Cardinality.SEQ:
+                    assert False, "group(..): unable to group by a sequence"
+                expr = ExprRel.wrap(expr, rel=expr)
+            fields[name] = Field(expr=expr, name=name)
+
+        return RelGroup(
+            rel=parent,
+            fields=fields,
+            scope=scope,
+            aggregates=scope.aggregates,
+            card=Cardinality.SEQ,
+        )
+    elif syn.name == "substring":
+        assert isinstance(parent.scope, EmptyScope), type(parent.scope)
+        assert len(syn.args) == 2, len(syn.args)
+        offset, length = syn.args
+
+        def make(expr):
+            return ExprTransform.wrap(
+                expr,
+                expr=expr,
+                transform=lambda v: sa.func.substring(v, offset, length),
+            )
+
+        if isinstance(parent, Expr):
+            return make(parent)
+        elif isinstance(parent, RelExpr):
+            return parent.replace(expr=make(parent.expr))
+        else:
+            assert False, type(parent)
     else:
         assert False, f"Unknown {syn.name}(...) combinator"  # pragma: no cover
 
@@ -276,7 +429,9 @@ def Literal_to_op(syn: Literal, parent: Op):
 
 @to_op.register
 def Compose_to_op(syn: Compose, parent: Op):
-    return to_op(syn.b, to_op(syn.a, parent=parent))
+    a, ak = norm_to_op(syn.a, parent)
+    b, bk = norm_to_op(syn.b, a)
+    return b, lambda op: bk(ak(op))
 
 
 @functools.singledispatch

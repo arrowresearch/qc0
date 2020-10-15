@@ -226,12 +226,14 @@ snapshots[
 
 snapshots[
     "test_count_nation_region_ok 1"
-] = """- 25
+] = """25
+...
 """
 
 snapshots[
     "test_count_region_ok 1"
-] = """- 5
+] = """5
+...
 """
 
 snapshots[
@@ -245,7 +247,8 @@ snapshots[
 
 snapshots[
     "test_count_region_via_opend_ok 1"
-] = """- 5
+] = """5
+...
 """
 
 snapshots[
@@ -262,7 +265,8 @@ snapshots[
 
 snapshots[
     "test_filter_customer_by_region_name_then_count_ok 1"
-] = """- 243
+] = """243
+...
 """
 
 snapshots[
@@ -321,6 +325,205 @@ snapshots[
 snapshots[
     "test_filter_region_true_ok 1"
 ] = """[]
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_aggr_array_ok 1"
+] = """- all:
+  - INDIA
+  - INDONESIA
+  - JAPAN
+  - CHINA
+  - VIETNAM
+  reg: ASIA
+- all:
+  - ALGERIA
+  - ETHIOPIA
+  - KENYA
+  - MOROCCO
+  - MOZAMBIQUE
+  reg: AFRICA
+- all:
+  - EGYPT
+  - IRAN
+  - IRAQ
+  - JORDAN
+  - SAUDI ARABIA
+  reg: MIDDLE EAST
+- all:
+  - ARGENTINA
+  - BRAZIL
+  - CANADA
+  - PERU
+  - UNITED STATES
+  reg: AMERICA
+- all:
+  - FRANCE
+  - GERMANY
+  - ROMANIA
+  - RUSSIA
+  - UNITED KINGDOM
+  reg: EUROPE
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_aggr_col_and_link_ok 1"
+] = """- customer_count: 253
+  nation_count: 5
+  ref: ASIA
+- customer_count: 243
+  nation_count: 5
+  ref: AFRICA
+- customer_count: 252
+  nation_count: 5
+  ref: MIDDLE EAST
+- customer_count: 232
+  nation_count: 5
+  ref: AMERICA
+- customer_count: 220
+  nation_count: 5
+  ref: EUROPE
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_aggr_filter_ok 1"
+] = """- count: 0
+  reg: ASIA
+- count: 1
+  reg: AFRICA
+- count: 0
+  reg: MIDDLE EAST
+- count: 0
+  reg: AMERICA
+- count: 0
+  reg: EUROPE
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_aggr_link_ok 1"
+] = """- customer_count: 253
+  ref: ASIA
+- customer_count: 243
+  ref: AFRICA
+- customer_count: 252
+  ref: MIDDLE EAST
+- customer_count: 232
+  ref: AMERICA
+- customer_count: 220
+  ref: EUROPE
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_aggr_ok 1"
+] = """- count: 5
+  ref: ASIA
+- count: 5
+  ref: AFRICA
+- count: 5
+  ref: MIDDLE EAST
+- count: 5
+  ref: AMERICA
+- count: 5
+  ref: EUROPE
+"""
+
+snapshots[
+    "test_group_nation_by_region_select_ok 1"
+] = """- reg: ASIA
+- reg: AFRICA
+- reg: MIDDLE EAST
+- reg: AMERICA
+- reg: EUROPE
+"""
+
+snapshots[
+    "test_group_ok 1"
+] = """- reg: ASIA
+- reg: AFRICA
+- reg: MIDDLE EAST
+- reg: AMERICA
+- reg: EUROPE
+"""
+
+snapshots[
+    "test_group_region_by_nation_select_ok 1"
+] = """- field: 5
+"""
+
+snapshots[
+    "test_group_select_nav_link_name_ok 1"
+] = """- - ASIA
+  - ASIA
+  - ASIA
+  - ASIA
+  - ASIA
+- - AFRICA
+  - AFRICA
+  - AFRICA
+  - AFRICA
+  - AFRICA
+- - MIDDLE EAST
+  - MIDDLE EAST
+  - MIDDLE EAST
+  - MIDDLE EAST
+  - MIDDLE EAST
+- - AMERICA
+  - AMERICA
+  - AMERICA
+  - AMERICA
+  - AMERICA
+- - EUROPE
+  - EUROPE
+  - EUROPE
+  - EUROPE
+  - EUROPE
+"""
+
+snapshots[
+    "test_group_select_nav_name_ok 1"
+] = """- - INDIA
+  - INDONESIA
+  - JAPAN
+  - CHINA
+  - VIETNAM
+- - ALGERIA
+  - ETHIOPIA
+  - KENYA
+  - MOROCCO
+  - MOZAMBIQUE
+- - EGYPT
+  - IRAN
+  - IRAQ
+  - JORDAN
+  - SAUDI ARABIA
+- - ARGENTINA
+  - BRAZIL
+  - CANADA
+  - PERU
+  - UNITED STATES
+- - FRANCE
+  - GERMANY
+  - ROMANIA
+  - RUSSIA
+  - UNITED KINGDOM
+"""
+
+snapshots[
+    "test_group_select_nav_ok 1"
+] = """- 5
+- 5
+- 5
+- 5
+- 5
+"""
+
+snapshots[
+    "test_group_then_nav_to_field_ok 1"
+] = """- ASIA
+- AFRICA
+- MIDDLE EAST
+- AMERICA
+- EUROPE
 """
 
 snapshots[
@@ -472,6 +675,147 @@ snapshots[
 - EUROPE
 - EUROPE
 - AMERICA
+"""
+
+snapshots[
+    "test_nested_group 1"
+] = """- names:
+  - BRAZIL
+  nested:
+  - names2:
+    - BRAZIL
+    r2: BR
+  r1: B
+- names:
+  - VIETNAM
+  nested:
+  - names2:
+    - VIETNAM
+    r2: VI
+  r1: V
+- names:
+  - JAPAN
+  - JORDAN
+  nested:
+  - names2:
+    - JORDAN
+    r2: JO
+  - names2:
+    - JAPAN
+    r2: JA
+  r1: J
+- names:
+  - INDIA
+  - INDONESIA
+  - IRAN
+  - IRAQ
+  nested:
+  - names2:
+    - IRAN
+    - IRAQ
+    r2: IR
+  - names2:
+    - INDIA
+    - INDONESIA
+    r2: IN
+  r1: I
+- names:
+  - KENYA
+  nested:
+  - names2:
+    - KENYA
+    r2: KE
+  r1: K
+- names:
+  - PERU
+  nested:
+  - names2:
+    - PERU
+    r2: PE
+  r1: P
+- names:
+  - GERMANY
+  nested:
+  - names2:
+    - GERMANY
+    r2: GE
+  r1: G
+- names:
+  - SAUDI ARABIA
+  nested:
+  - names2:
+    - SAUDI ARABIA
+    r2: SA
+  r1: S
+- names:
+  - UNITED KINGDOM
+  - UNITED STATES
+  nested:
+  - names2:
+    - UNITED KINGDOM
+    - UNITED STATES
+    r2: UN
+  r1: U
+- names:
+  - ROMANIA
+  - RUSSIA
+  nested:
+  - names2:
+    - RUSSIA
+    r2: RU
+  - names2:
+    - ROMANIA
+    r2: RO
+  r1: R
+- names:
+  - EGYPT
+  - ETHIOPIA
+  nested:
+  - names2:
+    - EGYPT
+    r2: EG
+  - names2:
+    - ETHIOPIA
+    r2: ET
+  r1: E
+- names:
+  - ALGERIA
+  - ARGENTINA
+  nested:
+  - names2:
+    - ARGENTINA
+    r2: AR
+  - names2:
+    - ALGERIA
+    r2: AL
+  r1: A
+- names:
+  - CANADA
+  - CHINA
+  nested:
+  - names2:
+    - CHINA
+    r2: CH
+  - names2:
+    - CANADA
+    r2: CA
+  r1: C
+- names:
+  - MOROCCO
+  - MOZAMBIQUE
+  nested:
+  - names2:
+    - MOROCCO
+    - MOZAMBIQUE
+    r2: MO
+  r1: M
+- names:
+  - FRANCE
+  nested:
+  - names2:
+    - FRANCE
+    r2: FR
+  r1: F
 """
 
 snapshots[
