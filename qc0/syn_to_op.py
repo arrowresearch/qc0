@@ -171,7 +171,8 @@ def Nav_to_op(syn: Nav, parent: Op):
             ), f"Unable to lookup {syn.name} in record scope, names: {names}"
 
     elif isinstance(parent.scope, SyntheticScope):
-        next_scope, transform = parent.scope.lookup(syn.name)
+        transform, type = parent.scope.lookup(syn.name)
+        next_scope = type_scope(type)
         assert transform is not None, f"Unable to lookup {syn.name}"
         if isinstance(parent, Rel):
             parent = ExprRel.wrap(parent, rel=parent)

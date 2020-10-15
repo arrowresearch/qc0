@@ -108,7 +108,7 @@ class JsonScope(SyntheticScope):
     """
 
     def lookup(self, name):
-        return self, lambda v: v[name]
+        return lambda v: v[name], sa.dialects.postgresql.JSONB()
 
 
 class DateScope(SyntheticScope):
@@ -119,12 +119,9 @@ class DateScope(SyntheticScope):
     """
 
     def lookup(self, name):
-        names = {
-            "year": lambda v: sa.extract("year", v),
-            "month": lambda v: sa.extract("month", v),
-            "day": lambda v: sa.extract("day", v),
-        }
-        return EmptyScope(), names[name]
+        if name not in {"year", "month", "year"}:
+            raise LookupError(name)
+        return lambda v: sa.extract(name, v), sa.Integer()
 
 
 @singledispatch
