@@ -220,6 +220,9 @@ def Nav_to_op(syn: Nav, parent: Op):
 
     elif isinstance(parent.scope, GroupScope):
         if syn.name == "_":
+            if parent.card == Cardinality.SEQ:
+                assert isinstance(parent, RelGroup)
+                return parent.rel
 
             def wrap(expr):
                 if not isinstance(expr, ExprAggregateRel):

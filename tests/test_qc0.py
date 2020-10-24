@@ -947,11 +947,9 @@ def test_group_select_nav_ok(snapshot):
     query = q.nation.group(n=q.region.name)._.count()
     assert run(query, print_op=True) == n(
         """
-        SELECT anon_1.aggr_0 AS value
-        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, 0) AS aggr_0
-        FROM (SELECT region_1.name AS n
-        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, count(*) AS value
-        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        SELECT anon_1.value AS value
+        FROM (SELECT count(*) AS value
+        FROM nation AS nation_1) AS anon_1
         """
     )
     assert_result_matches(snapshot, query)
@@ -961,11 +959,8 @@ def test_group_select_nav_name_ok(snapshot):
     query = q.nation.group(n=q.region.name)._.name
     assert run(query, print_op=True) == n(
         """
-        SELECT anon_1.aggr_0 AS value
-        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
-        FROM (SELECT region_1.name AS n
-        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, jsonb_agg(nation_1.name) AS value
-        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        SELECT nation_1.name AS value
+        FROM nation AS nation_1
         """
     )
     assert_result_matches(snapshot, query)
@@ -975,11 +970,8 @@ def test_group_select_nav_link_name_ok(snapshot):
     query = q.nation.group(n=q.region.name)._.region.name
     assert run(query, print_op=True) == n(
         """
-        SELECT anon_1.aggr_0 AS value
-        FROM (SELECT anon_2.n AS n, coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
-        FROM (SELECT region_1.name AS n
-        FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id GROUP BY region_1.name) AS anon_2 LEFT OUTER JOIN (SELECT region_2.name AS n, jsonb_agg(region_2.name) AS value
-        FROM nation AS nation_1 JOIN region AS region_2 ON nation_1.region_id = region_2.id GROUP BY region_2.name) AS anon_3 ON anon_2.n = anon_3.n) AS anon_1
+        SELECT region_1.name AS value
+FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id
         """
     )
     assert_result_matches(snapshot, query)

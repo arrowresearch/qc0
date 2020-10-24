@@ -452,69 +452,66 @@ snapshots[
 
 snapshots[
     "test_group_select_nav_link_name_ok 1"
-] = """- - ASIA
-  - ASIA
-  - ASIA
-  - ASIA
-  - ASIA
-- - AFRICA
-  - AFRICA
-  - AFRICA
-  - AFRICA
-  - AFRICA
-- - MIDDLE EAST
-  - MIDDLE EAST
-  - MIDDLE EAST
-  - MIDDLE EAST
-  - MIDDLE EAST
-- - AMERICA
-  - AMERICA
-  - AMERICA
-  - AMERICA
-  - AMERICA
-- - EUROPE
-  - EUROPE
-  - EUROPE
-  - EUROPE
-  - EUROPE
+] = """- AFRICA
+- AMERICA
+- AMERICA
+- AMERICA
+- MIDDLE EAST
+- AFRICA
+- EUROPE
+- EUROPE
+- ASIA
+- ASIA
+- MIDDLE EAST
+- MIDDLE EAST
+- ASIA
+- MIDDLE EAST
+- AFRICA
+- AFRICA
+- AFRICA
+- AMERICA
+- ASIA
+- EUROPE
+- MIDDLE EAST
+- ASIA
+- EUROPE
+- EUROPE
+- AMERICA
 """
 
 snapshots[
     "test_group_select_nav_name_ok 1"
-] = """- - INDIA
-  - INDONESIA
-  - JAPAN
-  - CHINA
-  - VIETNAM
-- - ALGERIA
-  - ETHIOPIA
-  - KENYA
-  - MOROCCO
-  - MOZAMBIQUE
-- - EGYPT
-  - IRAN
-  - IRAQ
-  - JORDAN
-  - SAUDI ARABIA
-- - ARGENTINA
-  - BRAZIL
-  - CANADA
-  - PERU
-  - UNITED STATES
-- - FRANCE
-  - GERMANY
-  - ROMANIA
-  - RUSSIA
-  - UNITED KINGDOM
+] = """- ALGERIA
+- ARGENTINA
+- BRAZIL
+- CANADA
+- EGYPT
+- ETHIOPIA
+- FRANCE
+- GERMANY
+- INDIA
+- INDONESIA
+- IRAN
+- IRAQ
+- JAPAN
+- JORDAN
+- KENYA
+- MOROCCO
+- MOZAMBIQUE
+- PERU
+- CHINA
+- ROMANIA
+- SAUDI ARABIA
+- VIETNAM
+- RUSSIA
+- UNITED KINGDOM
+- UNITED STATES
 """
 
 snapshots[
     "test_group_select_nav_ok 1"
-] = """- 5
-- 5
-- 5
-- 5
-- 5
+] = """25
+...
 """
 
 snapshots[
