@@ -1,5 +1,6 @@
 import dataclasses
 import yaml
+import functools
 
 
 class StructMeta(type):
@@ -37,3 +38,7 @@ def Struct_representer(dumper, self):
 
 
 yaml.add_multi_representer(Struct, Struct_representer)
+
+
+def cached(f):
+    return functools.lru_cache(maxsize=None, typed=True)(f)

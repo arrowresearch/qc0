@@ -1,3 +1,4 @@
+import pytest
 import yaml
 from datetime import date
 from textwrap import dedent
@@ -978,11 +979,11 @@ FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1
 
 
 def test_nested_group(snapshot):
-    query = q.nation.group(r1=q.name.substring(1, 1)).select(
+    query = q.nation.group(r1=q.name.substring(q.val(1), q.val(1))).select(
         r1=q.r1,
         names=q._.name,
         nested=(
-            q._.group(r2=q.name.substring(1, 2)).select(
+            q._.group(r2=q.name.substring(q.val(1), q.val(2))).select(
                 r2=q.r2, names2=q._.name
             )
         ),
@@ -998,6 +999,40 @@ def test_nested_group(snapshot):
         FROM (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1, SUBSTRING(nation_1.name FROM 1 FOR 2) AS r2
         FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1), SUBSTRING(nation_1.name FROM 1 FOR 2)) AS anon_6 LEFT OUTER JOIN (SELECT SUBSTRING(nation_1.name FROM 1 FOR 1) AS r1, SUBSTRING(nation_1.name FROM 1 FOR 2) AS r2, jsonb_agg(nation_1.name) AS value
         FROM nation AS nation_1 GROUP BY SUBSTRING(nation_1.name FROM 1 FOR 1), SUBSTRING(nation_1.name FROM 1 FOR 2)) AS anon_7 ON anon_6.r1 = anon_7.r1 AND anon_6.r2 = anon_7.r2) AS anon_5 GROUP BY anon_5.r1) AS anon_4 ON anon_3.r1 = anon_4.r1) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_substring_rel_ok(snapshot):
+    query = q.region.name.substring(q.val(1), q.val(2))
+    assert run(query, print_op=True) == n(
+        """
+        SELECT SUBSTRING(region_1.name FROM 1 FOR 2) AS value
+        FROM region AS region_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_substring_expr_ok(snapshot):
+    query = q.region.select(silly_abbr=q.name.substring(q.val(1), q.val(2)))
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('silly_abbr', SUBSTRING(region_1.name FROM 1 FOR 2)) AS value
+        FROM region AS region_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+@pytest.mark.xfail
+def test_substring_rel_non_expr_ok(snapshot):
+    query = q.region.name.take(2).substring(q.val(1), q.val(2))
+    assert run(query, print_op=True) == n(
+        """
+        SELECT SUBSTRING(region_1.name FROM 1 FOR 2) AS value
+        FROM region AS region_1
         """
     )
     assert_result_matches(snapshot, query)

@@ -15,6 +15,7 @@ import typing as ty
 
 import sqlalchemy as sa
 
+from .func import FuncSig
 from .scope import (
     Cardinality,
     EmptyScope,
@@ -54,7 +55,7 @@ from .op import (
     ExprIdentity,
     ExprConst,
     ExprBinOp,
-    ExprTransform,
+    ExprApply,
     Field,
 )
 
@@ -274,8 +275,12 @@ def Nav_to_op(syn: Nav, parent: Op):
         assert transform is not None, f"Unable to lookup {syn.name}"
         if isinstance(parent, Rel):
             parent = ExprRel.wrap(parent, rel=parent)
-        return ExprTransform.wrap(
-            parent, expr=parent, transform=transform, scope=next_scope
+        return ExprApply.wrap(
+            parent,
+            expr=parent,
+            args=(),
+            compile=transform,
+            scope=next_scope,
         )
 
     elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
@@ -363,6 +368,8 @@ def Apply_to_op(syn: Apply, parent: Op):
             expr,
             RelParent(scope=parent.scope, card=Cardinality.ONE),
         )
+        if not isinstance(expr, Expr):
+            expr = ExprRel.wrap(expr, rel=expr)
         assert isinstance(expr, Expr)
         return RelFilter.wrap(parent, rel=parent, expr=expr)
     elif syn.name == "group":
@@ -394,26 +401,31 @@ def Apply_to_op(syn: Apply, parent: Op):
             aggregates=scope.aggregates,
             card=Cardinality.SEQ,
         )
-    elif syn.name == "substring":
-        assert isinstance(parent.scope, EmptyScope), type(parent.scope)
-        assert len(syn.args) == 2, len(syn.args)
-        offset, length = syn.args
+    else:
+        sig = FuncSig.get(syn.name)
+        assert sig, f"unknown query combinator {syn.name}()"
+        args = []
+        for arg in syn.args:
+            arg = run_to_op(arg, RelParent.wrap(parent, card=Cardinality.ONE))
+            args.append(arg)
+        sig.validate(args)
 
-        def make(expr):
-            return ExprTransform.wrap(
-                expr,
-                expr=expr,
-                transform=lambda v: sa.func.substring(v, offset, length),
-            )
+        make = lambda parent: ExprApply.wrap(
+            parent,
+            expr=parent,
+            compile=sig.compile,
+            args=args,
+        )
 
         if isinstance(parent, Expr):
             return make(parent)
         elif isinstance(parent, RelExpr):
             return parent.replace(expr=make(parent.expr))
         else:
+            # TODO(andreypopp): this needs to be fixed... one idea is to rewrite
+            # the closest RelExpr by wrapping it with make (see above where it
+            # is done for the immediate RelExpr)
             assert False, type(parent)
-    else:
-        assert False, f"Unknown {syn.name}(...) combinator"  # pragma: no cover
 
 
 @to_op.register

@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple, Callable, Any, Union, List
+from typing import Dict, Tuple, Callable, Any, Union
 from functools import singledispatch
 from enum import IntEnum
 
@@ -133,7 +133,7 @@ class JsonScope(SyntheticScope):
     """
 
     def lookup(self, name):
-        return lambda v: v[name], sa.dialects.postgresql.JSONB()
+        return lambda expr, _args: expr[name], sa.dialects.postgresql.JSONB()
 
 
 class DateScope(SyntheticScope):
@@ -146,7 +146,7 @@ class DateScope(SyntheticScope):
     def lookup(self, name):
         if name not in {"year", "month", "year"}:
             raise LookupError(name)
-        return lambda v: sa.extract(name, v), sa.Integer()
+        return lambda expr, _args: sa.extract(name, expr), sa.Integer()
 
 
 @singledispatch

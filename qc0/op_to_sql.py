@@ -23,7 +23,7 @@ from .op import (
     ExprIdentity,
     ExprConst,
     ExprBinOp,
-    ExprTransform,
+    ExprApply,
     ExprRaw,
 )
 
@@ -213,10 +213,8 @@ def RelAggregateParent_to_sql(rel: RelAggregateParent, from_obj):
 @rel_to_sql.register
 def RelExpr_to_sql(rel: RelExpr, from_obj):
     value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-    assert value is None
-    # reparent
-    expr, inner_from_obj = expr_to_sql(rel.expr, from_obj=from_obj)
-    from_obj = from_obj.replace(current=inner_from_obj.current)
+    # assert value is None
+    expr, from_obj = expr_to_sql(rel.expr, from_obj=from_obj)
     return expr, from_obj
 
 
@@ -356,9 +354,16 @@ def ExprConst_to_sql(op: ExprConst, from_obj):
 
 
 @expr_to_sql.register
-def ExprTransform_to_sql(op: ExprTransform, from_obj):
-    expr, from_obj = expr_to_sql(op.expr, from_obj)
-    return op.transform(expr), from_obj
+def ExprApply_to_sql(op: ExprApply, from_obj):
+    parent, from_obj = expr_to_sql(op.expr, from_obj)
+    at = from_obj.at
+    args = []
+    for arg in op.args:
+        expr, from_obj = expr_to_sql(arg, from_obj.replace(at=at))
+        args.append(expr)
+    from_obj = from_obj.replace(at=at)
+    expr = op.compile(parent, args)
+    return expr, from_obj
 
 
 @expr_to_sql.register

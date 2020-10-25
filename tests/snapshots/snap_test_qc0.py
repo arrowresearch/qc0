@@ -1326,6 +1326,24 @@ snapshots[
 """
 
 snapshots[
+    "test_substring_expr_ok 1"
+] = """- silly_abbr: AF
+- silly_abbr: AM
+- silly_abbr: AS
+- silly_abbr: EU
+- silly_abbr: MI
+"""
+
+snapshots[
+    "test_substring_rel_ok 1"
+] = """- AF
+- AM
+- AS
+- EU
+- MI
+"""
+
+snapshots[
     "test_take_region_nation_ok 1"
 ] = """- (ALGERIA)
 - (ARGENTINA)

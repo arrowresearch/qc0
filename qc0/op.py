@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import Optional, Any, Callable, Dict
+from typing import Optional, Any, Callable, Dict, List
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct
 from .scope import Scope, Cardinality
@@ -123,9 +123,10 @@ class ExprConst(Expr):
     embed: Callable[[Any], Any]
 
 
-class ExprTransform(Expr):
+class ExprApply(Expr):
     expr: Expr
-    transform: Callable[[Any], Any]
+    args: List[Expr]
+    compile: Callable[[Any], Any]
 
 
 class ExprBinOp(Expr):
