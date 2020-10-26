@@ -22,7 +22,6 @@ from .op import (
     ExprColumn,
     ExprIdentity,
     ExprConst,
-    ExprBinOp,
     ExprApply,
     ExprRaw,
 )
@@ -367,27 +366,3 @@ def ExprApply_to_sql(op: ExprApply, from_obj):
     from_obj = from_obj.replace(at=at)
     expr = op.compile(parent, args)
     return expr, from_obj
-
-
-@expr_to_sql.register
-def ExprBinOp_to_sql(op: ExprBinOp, from_obj):
-    a, from_obj = expr_to_sql(op.a, from_obj)
-    b, from_obj = expr_to_sql(op.b, from_obj)
-    if op.func == "__eq__":
-        return a == b, from_obj
-    if op.func == "__ne__":
-        return a != b, from_obj
-    if op.func == "__add__":
-        return a + b, from_obj
-    if op.func == "__sub__":
-        return a - b, from_obj
-    if op.func == "__mul__":
-        return a * b, from_obj
-    if op.func == "__truediv__":
-        return a / b, from_obj
-    if op.func == "__and__":
-        return a & b, from_obj
-    if op.func == "__or__":
-        return a | b, from_obj
-    else:
-        assert False, f"unknown operation {op.func}"  # pragma: no cover

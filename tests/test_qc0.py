@@ -659,7 +659,7 @@ def test_add_string_literals_ok(snapshot):
 
 def test_add_integer_literals_ok(snapshot):
     query = q.val(40) + 2
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT 40 + 2 AS value
         """
@@ -669,7 +669,7 @@ def test_add_integer_literals_ok(snapshot):
 
 def test_add_columns_ok(snapshot):
     query = q.nation.select(full_name=q.name + " IN " + q.region.name)
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('full_name', nation_1.name || ' IN ' || region_1.name) AS value
         FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1.id

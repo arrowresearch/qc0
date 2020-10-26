@@ -129,12 +129,6 @@ class ExprApply(Expr):
     compile: Callable[[Any], Any]
 
 
-class ExprBinOp(Expr):
-    func: str
-    a: Expr
-    b: Expr
-
-
 class Field(Struct):
     name: str
     expr: Expr

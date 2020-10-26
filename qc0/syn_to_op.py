@@ -54,7 +54,6 @@ from .op import (
     ExprColumn,
     ExprIdentity,
     ExprConst,
-    ExprBinOp,
     ExprApply,
     Field,
 )
@@ -335,33 +334,6 @@ def Apply_to_op(syn: Apply, parent: Op):
         take = run_to_op(take, RelParent.wrap(parent))
         assert isinstance(parent, Rel), "take(...): requires a rel"
         return RelTake.wrap(parent, rel=parent, take=take)
-    elif syn.name in {
-        "__eq__",
-        "__ne__",
-        "__add__",
-        "__sub__",
-        "__mul__",
-        "__truediv__",
-        "__and__",
-        "__or__",
-    }:
-        assert (
-            len(syn.args) == 2
-        ), f"{syn.name}(...): expected exactly two arguments"
-        a, b = syn.args
-        a = run_to_op(a, parent)
-        if isinstance(a, Rel):
-            a = ExprRel.wrap(a, rel=a)
-        b = run_to_op(b, parent)
-        if isinstance(b, Rel):
-            b = ExprRel.wrap(b, rel=b)
-        return ExprBinOp.wrap(
-            parent,
-            func=syn.name,
-            a=a,
-            b=b,
-            scope=EmptyScope(),
-        )
     elif syn.name == "filter":
         assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]
@@ -408,7 +380,9 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert sig, f"unknown query combinator {syn.name}()"
         args = []
         for arg in syn.args:
-            arg = run_to_op(arg, RelParent.wrap(parent, card=Cardinality.ONE))
+            arg = run_to_op(arg, RelParent.wrap(parent))
+            if isinstance(arg, Rel):
+                arg = ExprRel.wrap(arg, rel=arg)
             args.append(arg)
         sig.validate(args)
 
@@ -423,6 +397,8 @@ def Apply_to_op(syn: Apply, parent: Op):
             return make(parent)
         elif isinstance(parent, RelExpr):
             return parent.replace(expr=make(parent.expr))
+        elif isinstance(parent, (RelParent, RelVoid)):
+            return make(ExprRel.wrap(parent, rel=parent))
         else:
             # TODO(andreypopp): this needs to be fixed... one idea is to rewrite
             # the closest RelExpr by wrapping it with make (see above where it
