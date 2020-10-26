@@ -678,6 +678,17 @@ def test_add_columns_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_add_columns_of_relok(snapshot):
+    query = q.region.name + "!"
+    assert run(query, print_op=True) == n(
+        """
+        SELECT region_1.name || '!' AS value
+        FROM region AS region_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 def test_sub_integer_literals_ok(snapshot):
     query = q.val(44) - 2
     assert run(query) == n(

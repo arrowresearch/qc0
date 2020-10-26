@@ -391,6 +391,11 @@ def Apply_to_op(syn: Apply, parent: Op):
             expr=parent,
             compile=sig.compile,
             args=args,
+            card=functools.reduce(
+                lambda card, arg: card * arg.card,
+                args,
+                Cardinality.ONE,
+            ),
         )
 
         if isinstance(parent, Expr):

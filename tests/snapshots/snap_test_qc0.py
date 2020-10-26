@@ -8,6 +8,15 @@ from snapshottest import Snapshot
 snapshots = Snapshot()
 
 snapshots[
+    "test_add_columns_of_relok 1"
+] = """- AFRICA!
+- AMERICA!
+- ASIA!
+- EUROPE!
+- MIDDLE EAST!
+"""
+
+snapshots[
     "test_add_columns_ok 1"
 ] = """- full_name: ALGERIA IN AFRICA
 - full_name: ARGENTINA IN AMERICA
