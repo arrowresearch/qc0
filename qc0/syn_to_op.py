@@ -394,7 +394,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             card=functools.reduce(
                 lambda card, arg: card * arg.card,
                 args,
-                Cardinality.ONE,
+                parent.card,
             ),
         )
 
@@ -403,7 +403,8 @@ def Apply_to_op(syn: Apply, parent: Op):
         elif isinstance(parent, RelExpr):
             return parent.replace(expr=make(parent.expr))
         elif isinstance(parent, (RelParent, RelVoid)):
-            return make(ExprRel.wrap(parent, rel=parent))
+            expr = make(ExprRel.wrap(parent, rel=parent))
+            return RelExpr.wrap(expr, expr=expr, rel=parent)
         else:
             # TODO(andreypopp): this needs to be fixed... one idea is to rewrite
             # the closest RelExpr by wrapping it with make (see above where it

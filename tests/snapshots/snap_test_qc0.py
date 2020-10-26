@@ -52,6 +52,40 @@ snapshots[
 """
 
 snapshots[
+    "test_add_lateral_columns_ok 1"
+] = """- names:
+  - ALGERIA!
+  - ETHIOPIA!
+  - KENYA!
+  - MOROCCO!
+  - MOZAMBIQUE!
+- names:
+  - ARGENTINA!
+  - BRAZIL!
+  - CANADA!
+  - PERU!
+  - UNITED STATES!
+- names:
+  - INDIA!
+  - INDONESIA!
+  - JAPAN!
+  - CHINA!
+  - VIETNAM!
+- names:
+  - FRANCE!
+  - GERMANY!
+  - ROMANIA!
+  - RUSSIA!
+  - UNITED KINGDOM!
+- names:
+  - EGYPT!
+  - IRAN!
+  - IRAQ!
+  - JORDAN!
+  - SAUDI ARABIA!
+"""
+
+snapshots[
     "test_add_string_literals_ok 1"
 ] = """Hello, World!
 ...

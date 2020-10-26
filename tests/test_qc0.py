@@ -678,6 +678,20 @@ def test_add_columns_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_add_lateral_columns_ok(snapshot):
+    query = q.region.select(names=q.nation.name + "!")
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('names', anon_1.value) AS value
+        FROM region AS region_1 LEFT OUTER JOIN LATERAL (SELECT jsonb_agg(anon_2.name || '!') AS value
+        FROM (SELECT nation_1.id AS id, nation_1.name AS name, nation_1.region_id AS region_id, nation_1.comment AS comment
+        FROM nation AS nation_1
+        WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON true
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 def test_add_columns_of_relok(snapshot):
     query = q.region.name + "!"
     assert run(query, print_op=True) == n(
