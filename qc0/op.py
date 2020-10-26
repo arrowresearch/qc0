@@ -73,7 +73,7 @@ class RelExpr(Rel):
 
 class RelTake(Rel):
     rel: Rel
-    take: int
+    take: Expr
 
 
 class RelFilter(Rel):

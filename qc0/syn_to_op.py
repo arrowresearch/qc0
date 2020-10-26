@@ -331,6 +331,8 @@ def Apply_to_op(syn: Apply, parent: Op):
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
+        # TODO(andreypopp): this shouldn't be the parent really...
+        take = run_to_op(take, RelParent.wrap(parent))
         assert isinstance(parent, Rel), "take(...): requires a rel"
         return RelTake.wrap(parent, rel=parent, take=take)
     elif syn.name in {

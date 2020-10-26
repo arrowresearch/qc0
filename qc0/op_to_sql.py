@@ -170,12 +170,15 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
 @rel_to_sql.register
 def RelTake_to_sql(rel: RelTake, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
+    at = from_obj.at
+    take, from_obj = expr_to_sql(rel.take, from_obj)
+    from_obj = from_obj.replace(at=at)
     sel = (
         sa.select(
             [*from_obj.group_by_columns, from_obj.at],
             from_obj=from_obj.current,
         )
-        .limit(rel.take)
+        .limit(take)
         .alias()
     )
     from_obj = From.make(sel)

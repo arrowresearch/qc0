@@ -96,6 +96,13 @@ class Q:
     def __init__(self, syn):
         self.syn = syn
 
+    @classmethod
+    def to_q(cls, v):
+        if isinstance(v, Q):
+            return v
+        else:
+            return cls(make_value(v))
+
     def __getattr__(self, name):
         nav = Nav(name=name)
         if self.syn is None:
@@ -105,13 +112,15 @@ class Q:
 
     def select(self, **fields):
         fields = {
-            name: Field(syn=syn.syn, name=name) for name, syn in fields.items()
+            name: Field(syn=self.to_q(syn).syn, name=name)
+            for name, syn in fields.items()
         }
         return self.__class__(Compose(self.syn, Select(fields=fields)))
 
     def group(self, **fields):
         fields = {
-            name: Field(syn=syn.syn, name=name) for name, syn in fields.items()
+            name: Field(syn=self.to_q(syn).syn, name=name)
+            for name, syn in fields.items()
         }
         return self.__class__(Compose(self.syn, Apply("group", fields)))
 
@@ -130,45 +139,47 @@ class Q:
             return self.__class__(Compose(self.syn, val))
 
     def __eq__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__eq__", args=(self.syn, o.syn)))
 
     def __ne__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__ne__", args=(self.syn, o.syn)))
 
     def __add__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__add__", args=(self.syn, o.syn)))
 
     def __sub__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__sub__", args=(self.syn, o.syn)))
 
     def __mul__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__mul__", args=(self.syn, o.syn)))
 
     def __truediv__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(
             Apply(name="__truediv__", args=(self.syn, o.syn))
         )
 
     def __and__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__and__", args=(self.syn, o.syn)))
 
     def __or__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Apply(name="__or__", args=(self.syn, o.syn)))
 
     def __rshift__(self, o: Q):
-        assert isinstance(o, Q)
+        o = self.to_q(o)
         return self.__class__(Compose(a=self.syn, b=o.syn))
 
     def __call__(self, *args):
-        args = tuple(arg.syn if isinstance(arg, Q) else arg for arg in args)
+        args = tuple(
+            arg if isinstance(arg, Syn) else self.to_q(arg).syn for arg in args
+        )
         if isinstance(self.syn, Nav):
             name = self.syn.name
             return self.__class__(Apply(name=name, args=args))

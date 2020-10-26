@@ -436,7 +436,7 @@ def test_take_region_x_nation_ok(snapshot):
 
 
 def test_filter_region_name_ok(snapshot):
-    query = q.region.filter(q.name == q.val("AFRICA"))
+    query = q.region.filter(q.name == "AFRICA")
     assert run(query) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
@@ -489,7 +489,7 @@ def test_literal_composition_with_another_literal_ok(snapshot):
 
 
 def test_literal_composition_with_query_via_op_ok(snapshot):
-    query = q.region >> q.val(True)
+    query = q.region >> True
     assert run(query) == n(
         """
         SELECT true AS value
@@ -511,7 +511,7 @@ def test_literal_composition_with_query_via_dot_ok(snapshot):
 
 
 def test_filter_region_true_ok(snapshot):
-    query = q.region.filter(q.val(False))
+    query = q.region.filter(False)
     assert run(query) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
@@ -524,7 +524,7 @@ def test_filter_region_true_ok(snapshot):
 
 
 def test_filter_region_by_name_ok(snapshot):
-    query = q.region.filter(q.name == q.val("AFRICA"))
+    query = q.region.filter(q.name == "AFRICA")
     assert run(query) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
@@ -537,7 +537,7 @@ def test_filter_region_by_name_ok(snapshot):
 
 
 def test_filter_region_by_name_then_nav_ok(snapshot):
-    query = q.region.filter(q.name == q.val("AFRICA")).name
+    query = q.region.filter(q.name == "AFRICA").name
     assert run(query) == n(
         """
         SELECT anon_1.name AS value
@@ -550,7 +550,7 @@ def test_filter_region_by_name_then_nav_ok(snapshot):
 
 
 def test_filter_region_by_name_then_select_ok(snapshot):
-    query = q.region.filter(q.name == q.val("AFRICA")).select(
+    query = q.region.filter(q.name == "AFRICA").select(
         name=q.name, nation_names=q.nation.name
     )
     assert run(query) == n(
@@ -568,7 +568,7 @@ def test_filter_region_by_name_then_select_ok(snapshot):
 
 
 def test_filter_nation_by_region_name_ok(snapshot):
-    query = q.nation.filter(q.region.name == q.val("AFRICA"))
+    query = q.nation.filter(q.region.name == "AFRICA")
     assert run(query) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
@@ -581,7 +581,7 @@ def test_filter_nation_by_region_name_ok(snapshot):
 
 
 def test_filter_nation_by_region_name_then_nav_column_ok(snapshot):
-    query = q.nation.filter(q.region.name == q.val("AFRICA")).name
+    query = q.nation.filter(q.region.name == "AFRICA").name
     assert run(query) == n(
         """
         SELECT anon_1.name AS value
@@ -594,7 +594,7 @@ def test_filter_nation_by_region_name_then_nav_column_ok(snapshot):
 
 
 def test_filter_customer_by_region_name_then_nav_column_ok(snapshot):
-    query = q.customer.filter(q.nation.region.name == q.val("AFRICA")).name
+    query = q.customer.filter(q.nation.region.name == "AFRICA").name
     assert run(query) == n(
         """
         SELECT anon_1.name AS value
@@ -608,7 +608,7 @@ def test_filter_customer_by_region_name_then_nav_column_ok(snapshot):
 
 
 def test_filter_customer_by_region_name_then_count_ok(snapshot):
-    query = q.customer.filter(q.nation.region.name == q.val("AFRICA")).count()
+    query = q.customer.filter(q.nation.region.name == "AFRICA").count()
     assert run(query) == n(
         """
         SELECT anon_1.value AS value
@@ -622,7 +622,7 @@ def test_filter_customer_by_region_name_then_count_ok(snapshot):
 
 
 def test_filter_customer_nation_by_region_name_then_nav_column_ok(snapshot):
-    query = q.customer.nation.filter(q.region.name == q.val("AFRICA")).name
+    query = q.customer.nation.filter(q.region.name == "AFRICA").name
     assert run(query) == n(
         """
         SELECT anon_1.name AS value
@@ -636,7 +636,7 @@ def test_filter_customer_nation_by_region_name_then_nav_column_ok(snapshot):
 
 
 def test_filter_region_by_nation_count_ok(snapshot):
-    query = q.region.filter(q.nation.count() == q.val(5))
+    query = q.region.filter(q.nation.count() == 5)
     assert run(query) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
@@ -652,7 +652,7 @@ def test_filter_region_by_nation_count_ok(snapshot):
 
 
 def test_add_string_literals_ok(snapshot):
-    query = q.val("Hello, ") + q.val("World!")
+    query = q.val("Hello, ") + "World!"
     assert run(query) == n(
         """
         SELECT 'Hello, ' || 'World!' AS value
@@ -662,7 +662,7 @@ def test_add_string_literals_ok(snapshot):
 
 
 def test_add_integer_literals_ok(snapshot):
-    query = q.val(40) + q.val(2)
+    query = q.val(40) + 2
     assert run(query) == n(
         """
         SELECT 40 + 2 AS value
@@ -672,7 +672,7 @@ def test_add_integer_literals_ok(snapshot):
 
 
 def test_add_columns_ok(snapshot):
-    query = q.nation.select(full_name=q.name + q.val(" IN ") + q.region.name)
+    query = q.nation.select(full_name=q.name + " IN " + q.region.name)
     assert run(query) == n(
         """
         SELECT jsonb_build_object('full_name', nation_1.name || ' IN ' || region_1.name) AS value
@@ -683,7 +683,7 @@ def test_add_columns_ok(snapshot):
 
 
 def test_sub_integer_literals_ok(snapshot):
-    query = q.val(44) - q.val(2)
+    query = q.val(44) - 2
     assert run(query) == n(
         """
         SELECT 44 - 2 AS value
@@ -693,7 +693,7 @@ def test_sub_integer_literals_ok(snapshot):
 
 
 def test_mul_integer_literals_ok(snapshot):
-    query = q.val(22) * q.val(2)
+    query = q.val(22) * 2
     assert run(query) == n(
         """
         SELECT 22 * 2 AS value
@@ -703,7 +703,7 @@ def test_mul_integer_literals_ok(snapshot):
 
 
 def test_truediv_integer_literals_ok(snapshot):
-    query = q.val(88) / q.val(2)
+    query = q.val(88) / 2
     assert run(query) == n(
         """
         SELECT 88 / 2 AS value
@@ -713,7 +713,7 @@ def test_truediv_integer_literals_ok(snapshot):
 
 
 def test_and_literals_ok(snapshot):
-    query = q.val(True) & q.val(False)
+    query = q.val(True) & False
     assert run(query) == n(
         """
         SELECT true AND false AS value
@@ -723,7 +723,7 @@ def test_and_literals_ok(snapshot):
 
 
 def test_or_literals_ok(snapshot):
-    query = q.val(True) | q.val(False)
+    query = q.val(True) | False
     assert run(query) == n(
         """
         SELECT true OR false AS value
@@ -795,7 +795,7 @@ def test_json_literal_nested_nav_ok(snapshot):
 
 
 def test_select_filter_end(snapshot):
-    query = q.region.select(n=q.name).filter(q.n == q.val("AFRICA"))
+    query = q.region.select(n=q.name).filter(q.n == "AFRICA")
     assert run(query) == n(
         """
         SELECT jsonb_build_object('n', anon_1.name) AS value
@@ -890,7 +890,7 @@ def test_group_nation_by_region_select_aggr_col_and_link_ok(snapshot):
 def test_group_nation_by_region_select_aggr_filter_ok(snapshot):
     query = q.nation.group(reg=q.region.name).select(
         reg=q.reg,
-        count=q._.filter(q.name == q.val("KENYA")).count(),
+        count=q._.filter(q.name == "KENYA").count(),
     )
     assert run(query, print_op=True) == n(
         """
@@ -979,11 +979,11 @@ FROM nation AS nation_1 JOIN region AS region_1 ON nation_1.region_id = region_1
 
 
 def test_nested_group(snapshot):
-    query = q.nation.group(r1=q.name.substring(q.val(1), q.val(1))).select(
+    query = q.nation.group(r1=q.name.substring(1, 1)).select(
         r1=q.r1,
         names=q._.name,
         nested=(
-            q._.group(r2=q.name.substring(q.val(1), q.val(2))).select(
+            q._.group(r2=q.name.substring(1, 2)).select(
                 r2=q.r2, names2=q._.name
             )
         ),
@@ -1005,7 +1005,7 @@ def test_nested_group(snapshot):
 
 
 def test_substring_rel_ok(snapshot):
-    query = q.region.name.substring(q.val(1), q.val(2))
+    query = q.region.name.substring(1, 2)
     assert run(query, print_op=True) == n(
         """
         SELECT SUBSTRING(region_1.name FROM 1 FOR 2) AS value
@@ -1016,7 +1016,7 @@ def test_substring_rel_ok(snapshot):
 
 
 def test_substring_expr_ok(snapshot):
-    query = q.region.select(silly_abbr=q.name.substring(q.val(1), q.val(2)))
+    query = q.region.select(silly_abbr=q.name.substring(1, 2))
     assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('silly_abbr', SUBSTRING(region_1.name FROM 1 FOR 2)) AS value
@@ -1028,7 +1028,7 @@ def test_substring_expr_ok(snapshot):
 
 @pytest.mark.xfail
 def test_substring_rel_non_expr_ok(snapshot):
-    query = q.region.name.take(2).substring(q.val(1), q.val(2))
+    query = q.region.name.take(2).substring(1, 2)
     assert run(query, print_op=True) == n(
         """
         SELECT SUBSTRING(region_1.name FROM 1 FOR 2) AS value
