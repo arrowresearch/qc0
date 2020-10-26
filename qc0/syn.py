@@ -75,7 +75,7 @@ class Literal(Syn):
     """
 
     value: Any
-    type: sa.Type
+    type: Any
 
 
 class Compose(Syn):

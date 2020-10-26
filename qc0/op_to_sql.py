@@ -11,7 +11,6 @@ from .op import (
     RelRevJoin,
     RelParent,
     RelAggregateParent,
-    RelExpr,
     RelTake,
     RelFilter,
     RelGroup,
@@ -212,14 +211,6 @@ def RelAggregateParent_to_sql(rel: RelAggregateParent, from_obj):
 
 
 @rel_to_sql.register
-def RelExpr_to_sql(rel: RelExpr, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-    # assert value is None
-    expr, from_obj = expr_to_sql(rel.expr, from_obj=from_obj)
-    return expr, from_obj
-
-
-@rel_to_sql.register
 def RelGroup_to_sql(rel: RelGroup, from_obj):
     value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
     assert value is None
@@ -258,6 +249,10 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
     for name, expr in rel.aggregates.items():
         columns, kernel = build_kernel()
         value, inner_from_obj = rel_to_sql(expr.rel, from_obj=kernel)
+        if expr.expr is not None:
+            value, inner_from_obj = expr_to_sql(
+                expr.expr, from_obj=inner_from_obj
+            )
         # aggregate
         if expr.func is None:
             value = sa.func.jsonb_agg(value)
@@ -298,17 +293,21 @@ def expr_to_sql(expr: Expr, from_obj):
 
 @expr_to_sql.register
 def ExprRel_to_sql(op: ExprRel, from_obj):
-    value, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
-    return value, from_obj
+    expr, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    if op.expr is not None:
+        expr, from_obj = expr_to_sql(op.expr, from_obj=from_obj)
+    return expr, from_obj
 
 
 @expr_to_sql.register
 def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj):
-    value, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    expr, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    if op.expr is not None:
+        expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
     if op.func is None:
-        value = sa.func.jsonb_agg(value).label("value")
+        value = sa.func.jsonb_agg(expr).label("value")
     else:
-        value = getattr(sa.func, op.func)(value).label("value")
+        value = getattr(sa.func, op.func)(expr).label("value")
     sel = inner_from_obj.to_select(value)
     if from_obj.at is not None:
         from_obj, at = from_obj.join_lateral(sel)
@@ -345,13 +344,15 @@ def ExprIdentity_to_sql(op: ExprIdentity, from_obj):
 
 @expr_to_sql.register
 def ExprConst_to_sql(op: ExprConst, from_obj):
-    _, from_obj = rel_to_sql(op.rel, from_obj)
     return op.embed(op.value), from_obj
 
 
 @expr_to_sql.register
 def ExprApply_to_sql(op: ExprApply, from_obj):
-    parent, from_obj = expr_to_sql(op.expr, from_obj)
+    if op.expr is not None:
+        parent, from_obj = expr_to_sql(op.expr, from_obj)
+    else:
+        parent = None
     at = from_obj.at
     args = []
     for arg in op.args:

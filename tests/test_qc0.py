@@ -1,4 +1,3 @@
-import pytest
 import yaml
 from datetime import date
 from textwrap import dedent
@@ -46,7 +45,7 @@ def test_nav_nation_ok(snapshot):
 
 def test_nav_nation_name_ok(snapshot):
     query = q.nation.name
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT nation_1.name AS value
         FROM nation AS nation_1
@@ -57,7 +56,7 @@ def test_nav_nation_name_ok(snapshot):
 
 def test_nav_nation_region_name_ok(snapshot):
     query = q.nation.region.name
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT region_1.name AS value
         FROM nation AS nation_1
@@ -106,7 +105,7 @@ def test_compose_nation_region_name_ok(snapshot):
 
 def test_compose_nation_select_ok(snapshot):
     query = q.nation >> q.select(nation_name=q.name, region_name=q.region.name)
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('nation_name', nation_1.name, 'region_name', region_1.name) AS value
         FROM nation AS nation_1
@@ -129,7 +128,7 @@ def test_select_nav_select_ok(snapshot):
 
 def test_select_tables_ok(snapshot):
     query = q.select(region=q.region)
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT jsonb_build_object('region', anon_1.value) AS value
         FROM
@@ -236,7 +235,7 @@ def test_select_nav_select_nav_column_ok(snapshot):
 
 def test_select_nav_select_nav_table_ok(snapshot):
     query = q.region.select(n=q.nation).n.name
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT nation_1.name AS value
         FROM region AS region_1
@@ -400,7 +399,7 @@ def test_select_back_nav_nested_ok(snapshot):
 
 def test_count_region_ok(snapshot):
     query = q.region.count()
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT anon_1.value AS value
         FROM
@@ -511,7 +510,7 @@ def test_take_region_x_nation_ok(snapshot):
 
 def test_filter_region_name_ok(snapshot):
     query = q.region.filter(q.name == "AFRICA")
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
         FROM
@@ -567,7 +566,7 @@ def test_literal_composition_with_another_literal_ok(snapshot):
 
 def test_literal_composition_with_query_via_op_ok(snapshot):
     query = q.region >> True
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT TRUE AS value
         FROM region AS region_1
@@ -1240,6 +1239,28 @@ def test_group_select_nav_link_name_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_group_binop_aggr_ok(snapshot):
+    query = q.region.group(len=q.name).select(names=q._.name + "!")
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('names', anon_1.aggr_0) AS value
+        FROM
+          (SELECT anon_2.len AS LEN,
+                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+           FROM
+             (SELECT region_1.name AS LEN
+              FROM region AS region_1
+              GROUP BY region_1.name) AS anon_2
+           LEFT OUTER JOIN
+             (SELECT region_1.name AS LEN,
+                     jsonb_agg(region_1.name || '!') AS value
+              FROM region AS region_1
+              GROUP BY region_1.name) AS anon_3 ON anon_2.len = anon_3.len) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 def test_nested_group(snapshot):
     query = q.nation.group(r1=q.name.substring(1, 1)).select(
         r1=q.r1,
@@ -1343,13 +1364,19 @@ def test_substring_expr_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
-@pytest.mark.xfail
 def test_substring_rel_non_expr_ok(snapshot):
     query = q.region.name.take(2).substring(1, 2)
     assert run(query, print_op=True) == n(
         """
-        SELECT SUBSTRING(region_1.name FROM 1 FOR 2) AS value
-        FROM region AS region_1
+        SELECT SUBSTRING(anon_1.name
+                         FROM 1
+                         FOR 2) AS value
+        FROM
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           LIMIT 2) AS anon_1
         """
     )
     assert_result_matches(snapshot, query)

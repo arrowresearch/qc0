@@ -12,7 +12,7 @@
 from __future__ import annotations
 from typing import Optional, Any, Callable, Dict, List
 from sqlalchemy import Table, Column, ForeignKey
-from .base import Struct
+from .base import Struct, undefined
 from .scope import Scope, Cardinality
 
 
@@ -26,8 +26,6 @@ class Op(Struct):
         rep = super(Op, self).__yaml__()
         if "scope" in rep:
             rep.pop("scope")
-        if "card" in rep:
-            rep.pop("card")
         return rep
 
     @classmethod
@@ -66,11 +64,6 @@ class RelAggregateParent(Rel):
     pass
 
 
-class RelExpr(Rel):
-    rel: Rel
-    expr: Expr
-
-
 class RelTake(Rel):
     rel: Rel
     take: Expr
@@ -91,6 +84,19 @@ class Expr(Op):
     """ Base class for ops which expr a new value."""
 
 
+class ExprRel(Expr):
+    rel: Rel
+    expr: Expr
+
+    def replace_expr(self, expr):
+        return self.replace(expr=expr, scope=expr.scope, card=expr.card)
+
+    def replace_rel(self, rel, expr=undefined):
+        if expr is undefined:
+            expr = self.expr
+        return self.replace(expr=expr, rel=rel, scope=rel.scope, card=rel.card)
+
+
 class ExprRecord(Expr):
     fields: Dict[str, Field]
 
@@ -103,18 +109,14 @@ class ExprIdentity(Expr):
     table: Table
 
 
-class ExprRel(Expr):
-    rel: Rel
-
-
 class ExprAggregateRel(Expr):
     rel: Rel
+    expr: Expr
     func: Optional[str]
     unit: Any
 
 
 class ExprConst(Expr):
-    rel: Rel
     value: Any
     embed: Callable[[Any], Any]
 

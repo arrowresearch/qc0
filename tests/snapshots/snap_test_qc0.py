@@ -371,6 +371,20 @@ snapshots[
 """
 
 snapshots[
+    "test_group_binop_aggr_ok 1"
+] = """- names:
+  - ASIA!
+- names:
+  - AFRICA!
+- names:
+  - MIDDLE EAST!
+- names:
+  - AMERICA!
+- names:
+  - EUROPE!
+"""
+
+snapshots[
     "test_group_nation_by_region_select_aggr_array_ok 1"
 ] = """- all:
   - INDIA
@@ -1375,6 +1389,12 @@ snapshots[
 - silly_abbr: AS
 - silly_abbr: EU
 - silly_abbr: MI
+"""
+
+snapshots[
+    "test_substring_rel_non_expr_ok 1"
+] = """- AF
+- AM
 """
 
 snapshots[

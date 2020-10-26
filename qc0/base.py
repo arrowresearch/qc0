@@ -1,6 +1,7 @@
 import dataclasses
 import yaml
 import functools
+import typing
 
 
 class StructMeta(type):
@@ -15,7 +16,7 @@ class Struct(metaclass=StructMeta):
 
     def __yaml__(self):
         fields = {}
-        for k in getattr(self.__class__, "__annotations__", []):
+        for k in typing.get_type_hints(self.__class__):
             v = getattr(self, k)
             if isinstance(v, Struct):
                 v = v
@@ -42,3 +43,6 @@ yaml.add_multi_representer(Struct, Struct_representer)
 
 def cached(f):
     return functools.lru_cache(maxsize=None, typed=True)(f)
+
+
+undefined = object()
