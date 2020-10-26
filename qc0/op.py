@@ -99,10 +99,6 @@ class ExprColumn(Expr):
     column: Column
 
 
-class ExprRaw(Expr):
-    raw: Any
-
-
 class ExprIdentity(Expr):
     table: Table
 
@@ -126,7 +122,7 @@ class ExprConst(Expr):
 class ExprApply(Expr):
     expr: Expr
     args: List[Expr]
-    compile: Callable[[Any], Any]
+    compile: Callable[[Expr, List[Expr]], Any]
 
 
 class Field(Struct):

@@ -23,7 +23,6 @@ from .op import (
     ExprIdentity,
     ExprConst,
     ExprApply,
-    ExprRaw,
 )
 
 
@@ -329,11 +328,6 @@ def ExprRecord_to_sql(op: ExprRecord, from_obj):
         )
         args.append(expr)
     return sa.func.jsonb_build_object(*args), from_obj
-
-
-@expr_to_sql.register
-def ExprRaw_to_sql(op: ExprRaw, from_obj):
-    return op.raw, from_obj
 
 
 @expr_to_sql.register
