@@ -2,7 +2,17 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql as sa_pg
-from .syn import Syn, Nav, Apply, Compose, Select, Literal, Field, make_value
+from .syn import (
+    Syn,
+    Nav,
+    Apply,
+    Compose,
+    Select,
+    BinOp,
+    Literal,
+    Field,
+    make_value,
+)
 from .scope import Cardinality
 from .syn_to_op import syn_to_op
 from .op_to_sql import op_to_sql
@@ -89,28 +99,28 @@ class Q:
             return self.s(Compose(self.syn, val))
 
     def __eq__(self, o: Q):
-        return self.s(Apply(name="__eq__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__eq__", a=self.syn, b=to_syn(o)))
 
     def __ne__(self, o: Q):
-        return self.s(Apply(name="__ne__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__ne__", a=self.syn, b=to_syn(o)))
 
     def __add__(self, o: Q):
-        return self.s(Apply(name="__add__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__add__", a=self.syn, b=to_syn(o)))
 
     def __sub__(self, o: Q):
-        return self.s(Apply(name="__sub__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__sub__", a=self.syn, b=to_syn(o)))
 
     def __mul__(self, o: Q):
-        return self.s(Apply(name="__mul__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__mul__", a=self.syn, b=to_syn(o)))
 
     def __truediv__(self, o: Q):
-        return self.s(Apply(name="__truediv__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__truediv__", a=self.syn, b=to_syn(o)))
 
     def __and__(self, o: Q):
-        return self.s(Apply(name="__and__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__and__", a=self.syn, b=to_syn(o)))
 
     def __or__(self, o: Q):
-        return self.s(Apply(name="__or__", args=(self.syn, to_syn(o))))
+        return self.s(BinOp(op="__or__", a=self.syn, b=to_syn(o)))
 
     def __rshift__(self, o: Q):
         return self.s(Compose(a=self.syn, b=to_syn(o)))

@@ -42,52 +42,58 @@ class FuncSig(Sig):
         return func(expr, *args)
 
 
-class EqSig(FuncSig):
+class BinOpSig(Sig):
+    @classmethod
+    def compile(cls, a, b):
+        raise NotImplementedError()
+
+
+class EqSig(BinOpSig):
     name = "__eq__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] == args[1])
+    compile = classmethod(lambda cls, a, b: a == b)
 
 
-class NeSig(FuncSig):
+class NeSig(BinOpSig):
     name = "__ne__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] != args[1])
+    compile = classmethod(lambda cls, a, b: a != b)
 
 
-class AddSig(FuncSig):
+class AddSig(BinOpSig):
     name = "__add__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] + args[1])
+    compile = classmethod(lambda cls, a, b: a + b)
 
 
-class SubSig(FuncSig):
+class SubSig(BinOpSig):
     name = "__sub__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] - args[1])
+    compile = classmethod(lambda cls, a, b: a - b)
 
 
-class MulSig(FuncSig):
+class MulSig(BinOpSig):
     name = "__mul__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] * args[1])
+    compile = classmethod(lambda cls, a, b: a * b)
 
 
-class TruedivSig(FuncSig):
+class TruedivSig(BinOpSig):
     name = "__truediv__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] / args[1])
+    compile = classmethod(lambda cls, a, b: a / b)
 
 
-class AndSig(FuncSig):
+class AndSig(BinOpSig):
     name = "__and__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] & args[1])
+    compile = classmethod(lambda cls, a, b: a & b)
 
 
-class OrSig(FuncSig):
+class OrSig(BinOpSig):
     name = "__or__"
     args = (Expr, Expr)
-    compile = classmethod(lambda cls, expr, args: args[0] | args[1])
+    compile = classmethod(lambda cls, a, b: a | b)
 
 
 class LengthSig(FuncSig):

@@ -15,7 +15,7 @@ import typing as ty
 
 import sqlalchemy as sa
 
-from .func import FuncSig
+from .func import FuncSig, BinOpSig
 from .scope import (
     Cardinality,
     EmptyScope,
@@ -32,6 +32,7 @@ from .syn import (
     Compose,
     Select,
     Apply,
+    BinOp,
     Literal,
 )
 from .op import (
@@ -410,6 +411,44 @@ def Apply_to_op(syn: Apply, parent: Op):
             # the closest RelExpr by wrapping it with make (see above where it
             # is done for the immediate RelExpr)
             assert False, type(parent)
+
+
+@to_op.register
+def BinOp_to_op(syn: BinOp, parent: Op):
+    sig = BinOpSig.get(syn.op)
+    assert sig, f"unknown query combinator {syn.name}()"
+    args = []
+    for arg in (syn.a, syn.b):
+        arg = run_to_op(arg, RelParent.wrap(parent))
+        if isinstance(arg, Rel):
+            arg = ExprRel.wrap(arg, rel=arg)
+        args.append(arg)
+    sig.validate(args)
+
+    make = lambda parent: ExprApply.wrap(
+        parent,
+        expr=parent,
+        compile=lambda parent, args: sig.compile(args[0], args[1]),
+        args=args,
+        card=functools.reduce(
+            lambda card, arg: card * arg.card,
+            args,
+            parent.card,
+        ),
+    )
+
+    if isinstance(parent, Expr):
+        return make(parent)
+    elif isinstance(parent, RelExpr):
+        return parent.replace(expr=make(parent.expr))
+    elif isinstance(parent, (RelParent, RelVoid)):
+        expr = make(ExprRel.wrap(parent, rel=parent))
+        return RelExpr.wrap(expr, expr=expr, rel=parent)
+    else:
+        # TODO(andreypopp): this needs to be fixed... one idea is to rewrite
+        # the closest RelExpr by wrapping it with make (see above where it
+        # is done for the immediate RelExpr)
+        assert False, type(parent)
 
 
 @to_op.register

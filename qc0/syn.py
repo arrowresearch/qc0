@@ -90,6 +90,19 @@ class Compose(Syn):
     b: Syn
 
 
+class BinOp(Syn):
+    """
+    Binary operation:
+
+        Q1 OP Q1
+
+    """
+
+    op: str
+    a: Syn
+    b: Syn
+
+
 @singledispatch
 def make_value(v, query_cls):
     raise NotImplementedError(  # pragma: no cover
