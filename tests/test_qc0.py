@@ -3,28 +3,24 @@ import yaml
 from datetime import date
 from textwrap import dedent
 from sqlalchemy import create_engine, MetaData
-from qc0 import q, syn_to_op, op_to_sql, execute
+from qc0 import Q
 
 engine = create_engine("postgresql://")
 meta = MetaData()
 meta.reflect(bind=engine)
+q = Q(meta=meta, engine=engine)
 
 
 def run(query, print_op=False):
-    query = query.syn
     print("-" * 40)
-    print(query)
+    print(query.syn)
 
-    op = syn_to_op(query, meta)
     if print_op:
         print("-" * 40)
-        print(op)
+        query.print_op()
 
-    sql = op_to_sql(op)
+    sql = query.sql()
     print("-" * 40)
-    sql = sql.compile(engine, compile_kwargs={"literal_binds": True})
-    sql = str(sql).strip()
-    sql = "\n".join([line.strip() for line in sql.split("\n")])
     print(sql)
     return sql
 
@@ -34,7 +30,7 @@ def n(v):
 
 
 def assert_result_matches(snapshot, query):
-    snapshot.assert_match(yaml.dump(execute(query, meta, engine)))
+    snapshot.assert_match(yaml.dump(query.run()))
 
 
 def test_nav_nation_ok(snapshot):
