@@ -31,6 +31,9 @@ class Q:
                 value = value[0]
             return value
 
+    def print_syn(self):
+        print(self.syn)
+
     def print_op(self):
         op = syn_to_op(self.syn, self.meta)
         print(op)
