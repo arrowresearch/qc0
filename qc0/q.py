@@ -38,20 +38,20 @@ class Q:
         op = syn_to_op(self.syn, self.meta)
         print(op)
 
-    def sql(self):
+    def sql(self, format=False):
         op = syn_to_op(self.syn, self.meta)
         sql = op_to_sql(op)
         sql = sql.compile(self.engine, compile_kwargs={"literal_binds": True})
         sql = str(sql).strip()
         sql = "\n".join([line.strip() for line in sql.split("\n")])
+        if format:
+            import sqlparse
+
+            sql = sqlparse.format(sql, reindent=True, keyword_case="upper")
         return sql
 
-    def print_sql(self):
-        import sqlparse
-
-        sql = self.sql()
-        sql = sqlparse.format(sql, reindent=True, keyword_case="upper")
-        print(sql)
+    def print_sql(self, format=True):
+        print(self.sql(format=format))
 
     def __getattr__(self, name):
         nav = Nav(name=name)
