@@ -1,3 +1,4 @@
+import pytest
 import yaml
 from datetime import date
 from textwrap import dedent
@@ -1377,6 +1378,26 @@ def test_substring_rel_non_expr_ok(snapshot):
                   region_1.comment AS COMMENT
            FROM region AS region_1
            LIMIT 2) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+@pytest.mark.xfail
+def test_group_nav_after_take(snapshot):
+    query = q.region.group(n=q.name).take(1)._
+    assert run(query, print_op=True) == n(
+        """
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+@pytest.mark.xfail
+def test_group_group_with_take(snapshot):
+    query = q.region.group(n=q.name).select(nation=q._.nation.take(1))
+    assert run(query, print_op=True) == n(
+        """
         """
     )
     assert_result_matches(snapshot, query)
