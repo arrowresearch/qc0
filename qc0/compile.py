@@ -25,7 +25,7 @@ from .op import (
 )
 
 
-def op_to_sql(op):
+def compile(op):
     """ Compile operations into SQL."""
     from_obj = From.make(None)
     if isinstance(op, Rel):

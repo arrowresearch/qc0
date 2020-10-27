@@ -1,7 +1,7 @@
 """
 
-    qc0.syn_to_op
-    =============
+    qc0.plan
+    ========
 
     Produce operations out of syntax.
 
@@ -26,7 +26,7 @@ from .scope import (
     SyntheticScope,
     type_scope,
 )
-from .syn import (
+from .syntax import (
     Syn,
     Nav,
     Compose,
@@ -64,7 +64,7 @@ def make_parent(scope):
     return ExprRel.wrap(rel, rel=rel, expr=None)
 
 
-def syn_to_op(syn: Syn, meta: sa.MetaData):
+def plan(syn: Syn, meta: sa.MetaData):
     """ Produce operations from syntax."""
     rel = RelVoid(
         scope=UnivScope(tables=meta.tables),

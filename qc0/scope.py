@@ -16,7 +16,7 @@ from enum import IntEnum
 import sqlalchemy as sa
 
 from .base import Struct
-from .syn import Field
+from .syntax import Field
 
 
 class Cardinality(IntEnum):

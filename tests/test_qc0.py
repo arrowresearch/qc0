@@ -18,7 +18,7 @@ def run(query, print_op=False):
         print("-" * 40)
         query.print_op()
 
-    sql = query.sql(format=True)
+    sql = query.sql
     print("-" * 40)
     print(sql)
     return sql
