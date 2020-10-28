@@ -104,7 +104,7 @@ class BinOp(Syn):
 
 
 @singledispatch
-def make_value(v, query_cls):
+def make_value(v):
     raise NotImplementedError(  # pragma: no cover
         f"unable to use {type(v)} as literal query"
     )
@@ -113,6 +113,11 @@ def make_value(v, query_cls):
 @make_value.register
 def int_make_value(v: int):
     return Literal(value=v, type=sa.Integer())
+
+
+@make_value.register
+def float_make_value(v: float):
+    return Literal(value=v, type=sa.Float())
 
 
 @make_value.register

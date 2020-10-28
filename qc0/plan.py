@@ -498,6 +498,11 @@ def IntegerLiteral_embed(_: sa.Integer):
 
 
 @embed.register
+def FloatLiteral_embed(_: sa.Float):
+    return lambda v: sa.literal(v)
+
+
+@embed.register
 def BooleanLiteral_embed(_: sa.Boolean):
     return lambda v: sa.literal(v)
 
