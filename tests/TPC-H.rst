@@ -235,3 +235,129 @@ SQL::
   [{'revenue': 2015.1152, 'orderkey': 24096, 'orderdate': '1995-03-01', 'shippriority': 0},
    {'revenue': 3187.0029, 'orderkey': 4423, 'orderdate': '1995-02-17', 'shippriority': 0},
    {'revenue': 6219.7856, 'orderkey': 5985, 'orderdate': '1995-01-12', 'shippriority': 0}]
+
+Order Priority Checking Query (Q4)
+----------------------------------
+
+SQL::
+
+  select
+    o_orderpriority,
+    count(*) as order_count
+  from
+    orders
+  where
+    o_orderdate >= date '[DATE]'
+    and o_orderdate < date '[DATE]' + interval '3' month
+    and exists (
+      select
+        *
+      from
+        lineitem
+      where
+        l_orderkey = o_orderkey
+        and l_commitdate < l_receiptdate
+    )
+  group by
+    o_orderpriority
+  order by
+    o_orderpriority;
+
+::
+
+  >>> (q.order
+  ...  .filter(
+  ...    (q.orderdate >= date(1993, 7, 1)) &
+  ...    (q.orderdate <= date(1993, 10, 1)) &
+  ...    q.lineitem.filter(q.commitdate < q.receiptdate).exists()
+  ...  )
+  ...  .group(orderpriority=q.orderpriority)
+  ...  .select(
+  ...    orderpriority=q.orderpriority,
+  ...    order_count=q._.count()
+  ...  )
+  ...  .sort(q.orderpriority)
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
+  [{'order_count': 79, 'orderpriority': '1-URGENT'},
+   {'order_count': 80, 'orderpriority': '2-HIGH'},
+   {'order_count': 91, 'orderpriority': '3-MEDIUM'},
+   {'order_count': 86, 'orderpriority': '4-NOT SPECIFIED'},
+   {'order_count': 107, 'orderpriority': '5-LOW'}]
+
+Local Supplier Volume Query (Q5)
+--------------------------------
+
+SQL::
+
+  select
+    n_name,
+    sum(l_extendedprice * (1 - l_discount)) as revenue
+  from
+    customer,
+    orders,
+    lineitem,
+    supplier,
+    nation,
+    region
+  where
+    c_custkey = o_custkey
+    and l_orderkey = o_orderkey
+    and l_suppkey = s_suppkey
+    and c_nationkey = s_nationkey
+    and s_nationkey = n_nationkey
+    and n_regionkey = r_regionkey
+    and r_name = '[REGION]'
+    and o_orderdate >= date '[DATE]'
+    and o_orderdate < date '[DATE]' + interval '1' year
+  group by
+    n_name
+  order by
+    revenue desc;
+
+::
+
+  >>> (q.lineitem
+  ...  .filter(
+  ...    (q.partsupp.supplier.nation.region.name == 'ASIA') &
+  ...    (q.order.orderdate >= date(1994, 1, 1)) &
+  ...    (q.order.orderdate < date(1995, 1, 1))
+  ...  )
+  ...  .group(nation=q.partsupp.supplier.nation.name)
+  ...  .select(
+  ...    nation=q.nation,
+  ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
+  ...  )
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
+  [{'nation': 'INDONESIA', 'revenue': 12900327.9504},
+   {'nation': 'VIETNAM', 'revenue': 12673214.0653},
+   {'nation': 'INDIA', 'revenue': 15042185.186},
+   {'nation': 'JAPAN', 'revenue': 6007285.9402},
+   {'nation': 'CHINA', 'revenue': 15111496.4525}]
+
+Forecasting Revenue Change Query (Q6)
+-------------------------------------
+
+SQL::
+
+  select
+    sum(l_extendedprice*l_discount) as revenue
+  from
+    lineitem
+  where
+    l_shipdate >= date '[DATE]'
+    and l_shipdate < date '[DATE]' + interval '1' year
+    and l_discount between [DISCOUNT] - 0.01 and [DISCOUNT] + 0.01
+    and l_quantity < [QUANTITY];
+
+::
+
+  >>> ((q.lineitem
+  ...  .filter(
+  ...    (q.shipdate >= date(1994, 1, 1)) &
+  ...    (q.shipdate < date(1995, 1, 1)) &
+  ...    (q.discount >= (0.06 - 0.01)) &
+  ...    (q.discount <= (0.06 + 0.01)) &
+  ...    (q.quantity < 24)
+  ...  ) >> (q.extendedprice * (1 - q.discount)).sum())
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
+  Decimal('9548183.0531')
