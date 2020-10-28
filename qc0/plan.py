@@ -61,8 +61,8 @@ from .op import (
 )
 
 
-def make_parent(scope):
-    rel = RelParent(scope=scope, card=Cardinality.ONE)
+def make_parent(parent):
+    rel = RelParent(scope=parent.scope, card=Cardinality.ONE, parent=parent)
     return ExprRel.wrap(rel, rel=rel, expr=None)
 
 
@@ -85,10 +85,9 @@ def build_op(syn: Syn, parent: Op):
 def build_op_expr(op: Expr):
     if isinstance(op, ExprRel) and op.expr is None:
         if isinstance(op.scope, RecordScope):
-            parent = make_parent(op.scope.scope)
             fields = {}
             for name, f in op.scope.fields.items():
-                expr = build_op(f.syn, parent)
+                expr = build_op(f.syn, op.scope.parent)
                 if expr.card == Cardinality.SEQ:
                     expr = ExprAggregateRel(
                         rel=expr.rel,
@@ -215,7 +214,8 @@ def Nav_to_op(syn: Nav, parent: Op):
         if syn.name in parent.scope.fields:
             field = parent.scope.fields[syn.name]
             return run_to_op(
-                field.syn, parent=parent.replace(scope=parent.scope.scope)
+                field.syn,
+                parent=parent.replace(scope=parent.scope.parent.scope),
             )
         else:
             names = ", ".join(parent.scope.fields)  # pragma: no cover
@@ -309,13 +309,13 @@ def Select_to_op(syn: Select, parent: Op):
     #
     # See build_op_expr where we create ExprRecord instead for the selects
     # which are "final".
-    scope = RecordScope(scope=parent.scope, fields=syn.fields)
+    scope = RecordScope(parent=make_parent(parent), fields=syn.fields)
     return parent.replace(scope=scope)
 
 
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
-    if syn.name in {"count", "exists", "sum", "avg"}:
+    if syn.name in {"count", "exists", "sum", "avg", "min", "max"}:
         assert len(syn.args) == 0, f"{syn.name}(...): expected no arguments"
         assert (
             parent.card >= Cardinality.SEQ
@@ -326,6 +326,8 @@ def Apply_to_op(syn: Apply, parent: Op):
             "exists": False,
             "sum": 0,
             "avg": 0,
+            "min": 0,
+            "max": 0,
         }
         return ExprAggregateRel.wrap(
             parent,
@@ -336,11 +338,16 @@ def Apply_to_op(syn: Apply, parent: Op):
             scope=EmptyScope(),
             card=Cardinality.ONE,
         )
+    elif syn.name == "fork":
+        assert len(syn.args) == 0, "fork(...): takes no arguments"
+        while isinstance(parent.rel, RelParent):
+            parent = parent.rel.parent
+        return parent
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
         # TODO(andreypopp): this shouldn't be the parent really...
-        take = run_to_op(take, make_parent(parent.scope))
+        take = run_to_op(take, make_parent(parent))
         assert (
             parent.card >= Cardinality.SEQ
         ), f"{syn.name}(...): expected a sequence of items"
@@ -349,7 +356,7 @@ def Apply_to_op(syn: Apply, parent: Op):
     elif syn.name == "first":
         assert len(syn.args) == 0, "first(): expected no arguments"
         assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
-        take = run_to_op(make_value(1), make_parent(parent.scope))
+        take = run_to_op(make_value(1), make_parent(parent))
         rel = RelTake.wrap(
             parent.rel,
             rel=parent.rel,
@@ -363,12 +370,12 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert (
             parent.card >= Cardinality.SEQ
         ), f"{syn.name}(...): expected a sequence of items"
-        expr = run_to_op(expr, make_parent(parent.scope))
+        expr = run_to_op(expr, make_parent(parent))
         rel = RelFilter.wrap(parent.rel, rel=parent.rel, expr=expr)
         return parent.replace(rel=rel)
     elif syn.name == "sort":
         assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
-        args = [run_to_op(arg, make_parent(parent.scope)) for arg in syn.args]
+        args = [run_to_op(arg, make_parent(parent)) for arg in syn.args]
         rel = RelSort.wrap(parent.rel, rel=parent.rel, args=args)
         return parent.replace(rel=rel)
     elif syn.name == "group":
@@ -379,7 +386,7 @@ def Apply_to_op(syn: Apply, parent: Op):
         scope = GroupScope(scope=parent.scope, fields=syn.args, aggregates={})
         fields = {}
         for name, f in syn.args.items():
-            expr = run_to_op(f.syn, make_parent(parent.scope))
+            expr = run_to_op(f.syn, make_parent(parent))
             if isinstance(expr, Rel):
                 if expr.card == Cardinality.SEQ:
                     assert False, "group(..): unable to group by a sequence"
@@ -399,7 +406,7 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert sig, f"unknown query combinator {syn.name}()"
         args = []
         for arg in syn.args:
-            arg = run_to_op(arg, make_parent(parent.scope))
+            arg = run_to_op(arg, make_parent(parent))
             if isinstance(arg, Rel):
                 arg = ExprRel.wrap(arg, rel=arg)
             args.append(arg)
@@ -435,9 +442,9 @@ def BinOp_to_op(syn: BinOp, parent: Op):
 
     sig = BinOpSig.get(syn.op)
     assert sig, f"unknown query combinator {syn.name}()"
-    a, ak = norm_to_op(syn.a, make_parent(parent.scope))
+    a, ak = norm_to_op(syn.a, make_parent(parent))
     a = build_op_expr(a)
-    b, bk = norm_to_op(syn.b, make_parent(parent.scope))
+    b, bk = norm_to_op(syn.b, make_parent(parent))
     b = build_op_expr(b)
 
     if a.card > b.card:

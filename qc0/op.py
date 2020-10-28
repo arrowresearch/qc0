@@ -57,7 +57,7 @@ class RelRevJoin(Rel):
 
 
 class RelParent(Rel):
-    pass
+    parent: ExprRel
 
 
 class RelAggregateParent(Rel):

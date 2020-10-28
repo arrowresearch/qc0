@@ -80,7 +80,7 @@ class RecordScope(Scope):
     A scope created by selection.
     """
 
-    scope: Scope
+    parent: Any
     fields: Dict[str, Field]
 
     def __yaml__(self):
