@@ -8,3 +8,4 @@ RUN pip install --upgrade pip
 RUN pip install black poetry ipython ipdb flake8
 ENV PGUSER="postgres"
 COPY pg_hba.conf /etc/postgresql/11/main/pg_hba.conf
+LABEL org.opencontainers.image.source https://github.com/arrowresearch/qc0
