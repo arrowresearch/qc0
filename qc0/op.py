@@ -74,6 +74,11 @@ class RelFilter(Rel):
     expr: Expr
 
 
+class RelSort(Rel):
+    rel: Rel
+    args: List[Expr]
+
+
 class RelGroup(Rel):
     rel: Rel
     fields: Dict[str, Field]

@@ -47,6 +47,7 @@ from .op import (
     RelAggregateParent,
     RelTake,
     RelFilter,
+    RelSort,
     RelGroup,
     Expr,
     ExprRel,
@@ -362,10 +363,12 @@ def Apply_to_op(syn: Apply, parent: Op):
             parent.card >= Cardinality.SEQ
         ), f"{syn.name}(...): expected a sequence of items"
         expr = run_to_op(expr, make_parent(parent.scope))
-        if not isinstance(expr, Expr):
-            expr = ExprRel.wrap(expr, rel=expr)
-        assert isinstance(expr, Expr)
         rel = RelFilter.wrap(parent.rel, rel=parent.rel, expr=expr)
+        return parent.replace(rel=rel)
+    elif syn.name == "sort":
+        assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
+        args = [run_to_op(arg, make_parent(parent.scope)) for arg in syn.args]
+        rel = RelSort.wrap(parent.rel, rel=parent.rel, args=args)
         return parent.replace(rel=rel)
     elif syn.name == "group":
         assert (

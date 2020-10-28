@@ -13,6 +13,7 @@ from .op import (
     RelAggregateParent,
     RelTake,
     RelFilter,
+    RelSort,
     RelGroup,
     Expr,
     ExprRel,
@@ -176,6 +177,27 @@ def RelTake_to_sql(rel: RelTake, from_obj):
             from_obj=from_obj.current,
         )
         .limit(take)
+        .alias()
+    )
+    from_obj = From.make(sel)
+    return val, from_obj
+
+
+@rel_to_sql.register
+def RelSort_to_sql(rel: RelSort, from_obj):
+    val, from_obj = rel_to_sql(rel.rel, from_obj)
+    # reparent
+    prev_at = from_obj.at
+    args = []
+    for arg in rel.args:
+        arg, inner_from_obj = expr_to_sql(arg, from_obj)
+        from_obj = from_obj.replace(current=inner_from_obj.current)
+        args.append(arg)
+    sel = (
+        sa.select(
+            [*from_obj.group_by_columns, prev_at], from_obj=from_obj.current
+        )
+        .order_by(*args)
         .alias()
     )
     from_obj = From.make(sel)
