@@ -327,11 +327,12 @@ SQL::
   ...    nation=q.nation,
   ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
   ...  )
+  ...  .sort(q.revenue)
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'nation': 'INDONESIA', 'revenue': 12900327.9504},
+  [{'nation': 'JAPAN', 'revenue': 6007285.9402},
    {'nation': 'VIETNAM', 'revenue': 12673214.0653},
+   {'nation': 'INDONESIA', 'revenue': 12900327.9504},
    {'nation': 'INDIA', 'revenue': 15042185.186},
-   {'nation': 'JAPAN', 'revenue': 6007285.9402},
    {'nation': 'CHINA', 'revenue': 15111496.4525}]
 
 Forecasting Revenue Change Query (Q6)
