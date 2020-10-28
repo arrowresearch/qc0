@@ -35,6 +35,56 @@ class Sig:
             )
 
 
+class AggrSig(Sig):
+    func = None
+    unit = NotImplemented
+
+    @classmethod
+    def compile(cls, args):
+        func = getattr(sa.func, cls.func or cls.name)
+        return func(*args)
+
+
+class JsonAggSig(AggrSig):
+    name = "jsonb_agg"
+    unit = sa.func.cast(sa.literal("[]"), sa.dialects.postgresql.JSONB())
+
+
+class CountSig(AggrSig):
+    name = "count"
+    unit = sa.literal(0)
+
+
+class SumSig(AggrSig):
+    name = "sum"
+    unit = sa.literal(0)
+
+
+class AvgSig(AggrSig):
+    name = "avg"
+    unit = sa.literal(0)
+
+
+class MinSig(AggrSig):
+    name = "min"
+    unit = sa.literal(0)
+
+
+class MaxSig(AggrSig):
+    name = "max"
+    unit = sa.literal(0)
+
+
+class ExistsSig(AggrSig):
+    name = "exists"
+    func = "bool_and"
+    unit = sa.literal(False)
+
+    @classmethod
+    def compile(cls, args):
+        return sa.func.bool_and(True)
+
+
 class FuncSig(Sig):
     @classmethod
     def compile(cls, expr, args):

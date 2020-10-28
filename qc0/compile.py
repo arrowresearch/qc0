@@ -269,18 +269,14 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
     for name, expr in rel.aggregates.items():
+        assert isinstance(expr, ExprAggregateRel)
         columns, kernel = build_kernel()
         value, inner_from_obj = rel_to_sql(expr.rel, from_obj=kernel)
         if expr.expr is not None:
             value, inner_from_obj = expr_to_sql(
                 expr.expr, from_obj=inner_from_obj
             )
-        # aggregate
-        if expr.func is None:
-            value = sa.func.jsonb_agg(value)
-        else:
-            value = getattr(sa.func, expr.func)(value)
-
+        value = expr.sig.compile([value])
         if kernel.current in inner_from_obj.current._from_objects:
             cols = columns
         else:
@@ -297,7 +293,7 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
             inner_sel, *((c.name, c.name) for c in columns), outer=True
         )
         result_columns.append(
-            sa.func.coalesce(inner_at.c.value, expr.unit).label(name)
+            sa.func.coalesce(inner_at.c.value, expr.sig.unit).label(name)
         )
 
     from_obj = From.make(
@@ -326,10 +322,7 @@ def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj):
     expr, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     if op.expr is not None:
         expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
-    if op.func is None:
-        value = sa.func.jsonb_agg(expr).label("value")
-    else:
-        value = getattr(sa.func, op.func)(expr).label("value")
+    value = op.sig.compile([expr])
     sel = inner_from_obj.to_select(value)
     if from_obj.at is not None:
         from_obj, at = from_obj.join_lateral(sel)

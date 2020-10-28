@@ -15,7 +15,7 @@ import typing as ty
 
 import sqlalchemy as sa
 
-from .func import FuncSig, BinOpSig
+from .func import FuncSig, BinOpSig, AggrSig, JsonAggSig
 from .scope import (
     Cardinality,
     EmptyScope,
@@ -92,8 +92,7 @@ def build_op_expr(op: Expr):
                     expr = ExprAggregateRel(
                         rel=expr.rel,
                         expr=expr.expr,
-                        func=None,
-                        unit=embed(sa.dialects.postgresql.JSONB())([]),
+                        sig=JsonAggSig,
                         card=Cardinality.ONE,
                         scope=EmptyScope(),
                     )
@@ -236,8 +235,7 @@ def Nav_to_op(syn: Nav, parent: Op):
                     expr = ExprAggregateRel(
                         rel=expr.rel,
                         expr=expr.expr,
-                        func=None,
-                        unit=embed(sa.dialects.postgresql.JSONB())([]),
+                        sig=JsonAggSig,
                         scope=expr.scope,
                         card=parent.card * Cardinality.ONE,
                     )
@@ -315,30 +313,7 @@ def Select_to_op(syn: Select, parent: Op):
 
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
-    if syn.name in {"count", "exists", "sum", "avg", "min", "max"}:
-        assert len(syn.args) == 0, f"{syn.name}(...): expected no arguments"
-        assert (
-            parent.card >= Cardinality.SEQ
-        ), f"{syn.name}(...): expected a sequence of items"
-        # TODO(andreypopp): need to introduce proper function sigs
-        unit_by_name = {
-            "count": 0,
-            "exists": False,
-            "sum": 0,
-            "avg": 0,
-            "min": 0,
-            "max": 0,
-        }
-        return ExprAggregateRel.wrap(
-            parent,
-            expr=parent.expr,
-            rel=parent.rel,
-            func=syn.name,
-            unit=unit_by_name[syn.name],
-            scope=EmptyScope(),
-            card=Cardinality.ONE,
-        )
-    elif syn.name == "fork":
+    if syn.name == "fork":
         assert len(syn.args) == 0, "fork(...): takes no arguments"
         while isinstance(parent.rel, RelParent):
             parent = parent.rel.parent
@@ -402,28 +377,40 @@ def Apply_to_op(syn: Apply, parent: Op):
         )
         return parent.replace(rel=rel, scope=rel.scope, card=rel.card)
     else:
-        sig = FuncSig.get(syn.name)
-        assert sig, f"unknown query combinator {syn.name}()"
-        args = []
-        for arg in syn.args:
-            arg = run_to_op(arg, make_parent(parent))
-            if isinstance(arg, Rel):
-                arg = ExprRel.wrap(arg, rel=arg)
-            args.append(arg)
-        sig.validate(args)
 
-        expr = ExprApply.wrap(
-            parent,
-            expr=parent.expr,
-            compile=sig.compile,
-            args=args,
-            card=functools.reduce(
-                lambda card, arg: card * arg.card,
-                args,
-                parent.card,
-            ),
-        )
-        return parent.replace_expr(expr)
+        sig = AggrSig.get(syn.name)
+        if sig:
+            assert parent.card >= Cardinality.SEQ
+            return ExprAggregateRel(
+                expr=parent.expr,
+                rel=parent.rel,
+                sig=sig,
+                scope=EmptyScope(),
+                card=Cardinality.ONE,
+            )
+
+        sig = FuncSig.get(syn.name)
+        if sig:
+            args = []
+            for arg in syn.args:
+                arg = run_to_op(arg, make_parent(parent))
+                args.append(arg)
+            sig.validate(args)
+
+            expr = ExprApply.wrap(
+                parent,
+                expr=parent.expr,
+                compile=sig.compile,
+                args=args,
+                card=functools.reduce(
+                    lambda card, arg: card * arg.card,
+                    args,
+                    parent.card,
+                ),
+            )
+            return parent.replace_expr(expr)
+
+        assert sig, f"unknown query combinator {syn.name}()"
 
 
 @to_op.register

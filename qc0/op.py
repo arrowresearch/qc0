@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import Optional, Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct, undefined
 from .scope import Scope, Cardinality
@@ -117,8 +117,7 @@ class ExprIdentity(Expr):
 class ExprAggregateRel(Expr):
     rel: Rel
     expr: Expr
-    func: Optional[str]
-    unit: Any
+    sig: Any
 
 
 class ExprConst(Expr):
