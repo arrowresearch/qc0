@@ -34,6 +34,7 @@ from .syntax import (
     Apply,
     BinOp,
     Literal,
+    make_value,
 )
 from .op import (
     Op,
@@ -343,6 +344,17 @@ def Apply_to_op(syn: Apply, parent: Op):
         ), f"{syn.name}(...): expected a sequence of items"
         rel = RelTake.wrap(parent.rel, rel=parent.rel, take=take)
         return parent.replace(rel=rel)
+    elif syn.name == "first":
+        assert len(syn.args) == 0, "first(): expected no arguments"
+        assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
+        take = run_to_op(make_value(1), make_parent(parent.scope))
+        rel = RelTake.wrap(
+            parent.rel,
+            rel=parent.rel,
+            take=take,
+            card=Cardinality.ONE,
+        )
+        return parent.replace(rel=rel, card=rel.card)
     elif syn.name == "filter":
         assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]

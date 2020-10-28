@@ -1,3 +1,6 @@
+PYTEST_ARGS = --doctest-glob='*.rst'
+PYTEST_COV_ARGS = --cov qc0 --cov-report term-missing
+
 init:
 	@w build
 	@w service postgresql start
@@ -14,10 +17,10 @@ down:
 	@w down
 
 test:
-	@pytest
+	@pytest $(PYTEST_ARGS)
 
 test-cov:
-	@pytest --cov qc0 --cov-report term-missing
+	@pytest $(PYTEST_ARGS)  $(PYTEST_COV_ARGS)
 
 fmt-check:
 	@black --check qc0/ tests/
