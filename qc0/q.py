@@ -85,11 +85,29 @@ class Q:
     def __ne__(self, o: Q):
         return self._make(syntax.BinOp(op="__ne__", a=self.syn, b=to_syn(o)))
 
+    def __lt__(self, o: Q):
+        return self._make(syntax.BinOp(op="__lt__", a=self.syn, b=to_syn(o)))
+
+    def __gt__(self, o: Q):
+        return self._make(syntax.BinOp(op="__gt__", a=self.syn, b=to_syn(o)))
+
+    def __le__(self, o: Q):
+        return self._make(syntax.BinOp(op="__le__", a=self.syn, b=to_syn(o)))
+
+    def __ge__(self, o: Q):
+        return self._make(syntax.BinOp(op="__ge__", a=self.syn, b=to_syn(o)))
+
     def __add__(self, o: Q):
         return self._make(syntax.BinOp(op="__add__", a=self.syn, b=to_syn(o)))
 
+    def __radd__(self, o: Q):
+        return self._make(syntax.BinOp(op="__add__", a=to_syn(o), b=self.syn))
+
     def __sub__(self, o: Q):
         return self._make(syntax.BinOp(op="__sub__", a=self.syn, b=to_syn(o)))
+
+    def __rsub__(self, o: Q):
+        return self._make(syntax.BinOp(op="__sub__", a=to_syn(o), b=self.syn))
 
     def __mul__(self, o: Q):
         return self._make(syntax.BinOp(op="__mul__", a=self.syn, b=to_syn(o)))

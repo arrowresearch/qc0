@@ -315,7 +315,7 @@ def Select_to_op(syn: Select, parent: Op):
 
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
-    if syn.name in {"count", "exists", "sum"}:
+    if syn.name in {"count", "exists", "sum", "avg"}:
         assert len(syn.args) == 0, f"{syn.name}(...): expected no arguments"
         assert (
             parent.card >= Cardinality.SEQ
@@ -325,6 +325,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             "count": 0,
             "exists": False,
             "sum": 0,
+            "avg": 0,
         }
         return ExprAggregateRel.wrap(
             parent,

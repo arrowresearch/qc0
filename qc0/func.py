@@ -60,6 +60,30 @@ class NeSig(BinOpSig):
     compile = classmethod(lambda cls, a, b: a != b)
 
 
+class LtSig(BinOpSig):
+    name = "__lt__"
+    args = (Expr, Expr)
+    compile = classmethod(lambda cls, a, b: a < b)
+
+
+class GtSig(BinOpSig):
+    name = "__gt__"
+    args = (Expr, Expr)
+    compile = classmethod(lambda cls, a, b: a > b)
+
+
+class LeSig(BinOpSig):
+    name = "__le__"
+    args = (Expr, Expr)
+    compile = classmethod(lambda cls, a, b: a <= b)
+
+
+class GeSig(BinOpSig):
+    name = "__ge__"
+    args = (Expr, Expr)
+    compile = classmethod(lambda cls, a, b: a >= b)
+
+
 class AddSig(BinOpSig):
     name = "__add__"
     args = (Expr, Expr)
