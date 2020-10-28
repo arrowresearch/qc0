@@ -134,7 +134,28 @@ SQL::
     s_name,
     p_partkey;
 
-qc0::
+First, let's query for all ``partsupp`` in the region::
+
+  >>> _ = (q.partsupp
+  ...  .filter(q.supplier.nation.region.name == 'EUROPE'))
+
+Now let's keep only those which supply at the minimum cost::
+
+  >>> _ = (q.partsupp
+  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
+  ...  .filter(q.supplycost == q.fork().supplycost.min()))
+
+Now we can add filters by type and size::
+
+  >>> _ = (q.partsupp
+  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
+  ...  .filter(q.supplycost == q.fork().supplycost.min())
+  ...  .filter(
+  ...     q.part.type.like('%NICKEL') &
+  ...     (q.part.size == 45)
+  ...  ))
+
+Finally we can select needed columns::
 
   >>> (q.partsupp
   ...  .filter(q.supplier.nation.region.name == 'EUROPE')
