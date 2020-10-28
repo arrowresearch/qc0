@@ -19,7 +19,7 @@ SQL::
     count(*) as count_order
   from lineitem
   where
-    l_shipdate <= date '1998-12-01' - interval '[DELTA]' day (3)
+    l_shipdate <= date '1998-12-01' - interval '[DELTA]' day
   group by
     l_returnflag,
     l_linestatus
@@ -86,3 +86,77 @@ qc0::
     'count_order': 11963,
     'sum_base_price': 406030555.01,
     'sum_disc_price': 385792652.5409}]
+
+Minimum Cost Supplier Query (Q2)
+--------------------------------
+
+SQL::
+
+  select
+    s_acctbal,
+    s_name,
+    n_name,
+    p_partkey,
+    p_mfgr,
+    s_address,
+    s_phone,
+    s_comment
+  from
+    part,
+    supplier,
+    partsupp,
+    nation,
+    region
+  where
+    p_partkey = ps_partkey
+    and s_suppkey = ps_suppkey
+    and p_size = [SIZE]
+    and p_type like '%[TYPE]'
+    and s_nationkey = n_nationkey
+    and n_regionkey = r_regionkey
+    and r_name = '[REGION]'
+    and ps_supplycost = (
+      select 
+        min(ps_supplycost)
+      from
+        partsupp, supplier,
+        nation, region
+      where
+        p_partkey = ps_partkey
+        and s_suppkey = ps_suppkey
+        and s_nationkey = n_nationkey
+        and n_regionkey = r_regionkey
+        and r_name = '[REGION]'
+    )
+  order by
+    s_acctbal desc,
+    n_name,
+    s_name,
+    p_partkey;
+
+qc0::
+
+  >>> (q.partsupp
+  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
+  ...  .filter(q.supplycost == q.fork().supplycost.min())
+  ...  .filter(
+  ...     q.part.type.like('%NICKEL') &
+  ...     (q.part.size == 45)
+  ...  )
+  ...  .select(
+  ...     s_acctbal=q.supplier.acctbal,
+  ...     s_name=q.supplier.name,
+  ...     n_name=q.supplier.nation.name,
+  ...     p_mfgr=q.part.mfgr,
+  ...     s_address=q.supplier.address,
+  ...     s_phone=q.supplier.phone,
+  ...     s_comment=q.supplier.comment,
+  ...  )
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+  [{'n_name': 'RUSSIA',
+    'p_mfgr': 'Manufacturer#1',
+    's_name': 'Supplier#000000025',
+    's_phone': '32-431-945-3541',
+    's_acctbal': 9198.31,
+    's_address': 'RCQKONXMFnrodzz6w7fObFVV6CUm2q',
+    's_comment': '...'}]
