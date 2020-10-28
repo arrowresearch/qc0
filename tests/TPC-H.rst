@@ -181,3 +181,57 @@ Finally we can select needed columns::
     's_acctbal': 9198.31,
     's_address': 'RCQKONXMFnrodzz6w7fObFVV6CUm2q',
     's_comment': '...'}]
+
+Shipping Priority Query (Q3)
+----------------------------
+
+SQL::
+
+  select
+    l_orderkey,
+    sum(l_extendedprice*(1-l_discount)) as revenue,
+    o_orderdate,
+    o_shippriority
+  from
+    customer,
+    orders,
+    lineitem
+  where
+    c_mktsegment = '[SEGMENT]'
+    and c_custkey = o_custkey
+    and l_orderkey = o_orderkey
+    and o_orderdate < date '[DATE]'
+    and l_shipdate > date '[DATE]'
+  group by
+    l_orderkey,
+    o_orderdate,
+    o_shippriority
+  order by
+    revenue desc,
+    o_orderdate;
+
+::
+
+  >>> (q.lineitem
+  ...  .filter(
+  ...    (q.order.customer.mktsegment == 'BUILDING') &
+  ...    (q.shipdate > date(1995, 3, 15)) &
+  ...    (q.order.orderdate < date(1995, 3, 15))
+  ...  )
+  ...  .group(
+  ...    orderkey=q.order.key,
+  ...    orderdate=q.order.orderdate,
+  ...    shippriority=q.order.shippriority,
+  ...  )
+  ...  .select(
+  ...    orderkey=q.orderkey,
+  ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
+  ...    orderdate=q.orderdate,
+  ...    shippriority=q.shippriority,
+  ...  )
+  ...  .sort(q.revenue, q.orderdate)
+  ...  .take(3)
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+  [{'revenue': 2015.1152, 'orderkey': 24096, 'orderdate': '1995-03-01', 'shippriority': 0},
+   {'revenue': 3187.0029, 'orderkey': 4423, 'orderdate': '1995-02-17', 'shippriority': 0},
+   {'revenue': 6219.7856, 'orderkey': 5985, 'orderdate': '1995-01-12', 'shippriority': 0}]
