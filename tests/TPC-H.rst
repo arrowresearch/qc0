@@ -229,12 +229,12 @@ SQL::
   ...    orderdate=q.orderdate,
   ...    shippriority=q.shippriority,
   ...  )
-  ...  .sort(q.revenue, q.orderdate)
+  ...  .sort(q.revenue.desc(), q.orderdate)
   ...  .take(3)
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
-  [{'revenue': 2015.1152, 'orderkey': 24096, 'orderdate': '1995-03-01', 'shippriority': 0},
-   {'revenue': 3187.0029, 'orderkey': 4423, 'orderdate': '1995-02-17', 'shippriority': 0},
-   {'revenue': 6219.7856, 'orderkey': 5985, 'orderdate': '1995-01-12', 'shippriority': 0}]
+  [{'revenue': 245018.0968, 'orderkey': 24960, 'orderdate': '1995-01-28', 'shippriority': 0},
+   {'revenue': 234486.9328, 'orderkey': 23270, 'orderdate': '1995-03-14', 'shippriority': 0},
+   {'revenue': 231804.6747, 'orderkey': 39878, 'orderdate': '1995-03-06', 'shippriority': 0}]
 
 Order Priority Checking Query (Q4)
 ----------------------------------
@@ -327,13 +327,13 @@ SQL::
   ...    nation=q.nation,
   ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
   ...  )
-  ...  .sort(q.revenue)
+  ...  .sort(q.revenue.desc())
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'nation': 'JAPAN', 'revenue': 6007285.9402},
-   {'nation': 'VIETNAM', 'revenue': 12673214.0653},
-   {'nation': 'INDONESIA', 'revenue': 12900327.9504},
+  [{'nation': 'CHINA', 'revenue': 15111496.4525},
    {'nation': 'INDIA', 'revenue': 15042185.186},
-   {'nation': 'CHINA', 'revenue': 15111496.4525}]
+   {'nation': 'INDONESIA', 'revenue': 12900327.9504},
+   {'nation': 'VIETNAM', 'revenue': 12673214.0653},
+   {'nation': 'JAPAN', 'revenue': 6007285.9402}]
 
 Forecasting Revenue Change Query (Q6)
 -------------------------------------

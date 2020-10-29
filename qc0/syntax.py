@@ -103,6 +103,17 @@ class BinOp(Syn):
     b: Syn
 
 
+class Desc(Syn):
+    """
+    Descending sort modifier:
+
+        Q1-
+
+    """
+
+    syn: Syn
+
+
 @singledispatch
 def make_value(v):
     raise NotImplementedError(  # pragma: no cover

@@ -62,6 +62,10 @@ class Q:
             syntax.Compose(self.syn, syntax.Apply("group", fields))
         )
 
+    def desc(self):
+        """ Compose with ``o`` query."""
+        return self._make(syntax.Desc(self.syn))
+
     def val(self, v):
         val = syntax.make_value(v)
         if self.syn is None:

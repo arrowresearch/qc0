@@ -189,9 +189,11 @@ def RelSort_to_sql(rel: RelSort, from_obj):
     # reparent
     prev_at = from_obj.at
     args = []
-    for arg in rel.args:
+    for arg, desc in rel.args:
         arg, inner_from_obj = expr_to_sql(arg, from_obj)
         from_obj = from_obj.replace(current=inner_from_obj.current)
+        if desc:
+            arg = arg.desc()
         args.append(arg)
     sel = (
         sa.select(

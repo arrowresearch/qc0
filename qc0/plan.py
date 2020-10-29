@@ -34,6 +34,7 @@ from .syntax import (
     Apply,
     BinOp,
     Literal,
+    Desc,
     make_value,
 )
 from .op import (
@@ -350,7 +351,15 @@ def Apply_to_op(syn: Apply, parent: Op):
         return parent.replace(rel=rel)
     elif syn.name == "sort":
         assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
-        args = [run_to_op(arg, make_parent(parent)) for arg in syn.args]
+        args = []
+        for arg in syn.args:
+            desc = False
+            if isinstance(arg, Desc):
+                desc = True
+                arg = arg.syn
+            arg = run_to_op(arg, make_parent(parent))
+            args.append((arg, desc))
+
         rel = RelSort.wrap(parent.rel, rel=parent.rel, args=args)
         return parent.replace(rel=rel)
     elif syn.name == "group":
@@ -464,6 +473,11 @@ def Compose_to_op(syn: Compose, parent: Op):
     a, ak = norm_to_op(syn.a, parent)
     b, bk = norm_to_op(syn.b, a)
     return b, lambda op: bk(ak(op))
+
+
+@to_op.register
+def Desc_to_op(syn: Desc, parent: Op):
+    assert False, "desc() is only valid inside sort(..)"
 
 
 @functools.singledispatch
