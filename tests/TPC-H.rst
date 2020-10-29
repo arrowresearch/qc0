@@ -410,8 +410,12 @@ SQL::
 
   >>> (q.lineitem
   ...  .filter(
-  ...    (q.order.customer.nation.name == 'GERMANY') &
-  ...    (q.partsupp.supplier.nation.name == 'FRANCE') &
+  ...    (
+  ...      ((q.order.customer.nation.name == 'GERMANY') &
+  ...      (q.partsupp.supplier.nation.name == 'FRANCE')) |
+  ...      ((q.order.customer.nation.name == 'FRANCE') &
+  ...      (q.partsupp.supplier.nation.name == 'GERMANY'))
+  ...    ) &
   ...    (q.shipdate >= date(1995, 1, 1)) &
   ...    (q.shipdate <= date(1996, 12, 31))
   ...  )
@@ -429,4 +433,6 @@ SQL::
   ...  .sort(q.supp_nation, q.cust_nation, q.year)
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE
   [{'year': 1995, 'revenue': 263047.8824, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'},
-   {'year': 1996, 'revenue': 154119.1338, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'}]
+   {'year': 1996, 'revenue': 154119.1338, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'},
+   {'year': 1995, 'revenue': 205237.6695, 'cust_nation': 'FRANCE', 'supp_nation': 'GERMANY'},
+   {'year': 1996, 'revenue': 407967.2149, 'cust_nation': 'FRANCE', 'supp_nation': 'GERMANY'}]
