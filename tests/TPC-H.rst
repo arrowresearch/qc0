@@ -362,3 +362,71 @@ SQL::
   ...  ) >> (q.extendedprice * (1 - q.discount)).sum())
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE
   Decimal('9548183.0531')
+
+Volume Shipping Query (Q7)
+--------------------------
+
+SQL::
+
+  select
+    supp_nation,
+    cust_nation,
+    l_year, sum(volume) as revenue
+  from (
+    select
+      n1.n_name as supp_nation,
+      n2.n_name as cust_nation,
+      extract(year from l_shipdate) as l_year,
+      l_extendedprice * (1 - l_discount) as volume
+    from
+      supplier,
+      lineitem,
+      orders,
+      customer,
+      nation n1,
+      nation n2
+    where
+      s_suppkey = l_suppkey
+      and o_orderkey = l_orderkey
+      and c_custkey = o_custkey
+      and s_nationkey = n1.n_nationkey
+      and c_nationkey = n2.n_nationkey
+      and (
+        (n1.n_name = '[NATION1]' and n2.n_name = '[NATION2]')
+        or (n1.n_name = '[NATION2]' and n2.n_name = '[NATION1]')
+      )
+      and l_shipdate between date '1995-01-01' and date '1996-12-31'
+  ) as shipping
+  group by
+    supp_nation,
+    cust_nation,
+    l_year
+  order by
+    supp_nation,
+    cust_nation,
+    l_year;
+
+::
+
+  >>> (q.lineitem
+  ...  .filter(
+  ...    (q.order.customer.nation.name == 'GERMANY') &
+  ...    (q.partsupp.supplier.nation.name == 'FRANCE') &
+  ...    (q.shipdate >= date(1995, 1, 1)) &
+  ...    (q.shipdate <= date(1996, 12, 31))
+  ...  )
+  ...  .group(
+  ...     year=q.shipdate.year,
+  ...     cust_nation=q.order.customer.nation.name,
+  ...     supp_nation=q.partsupp.supplier.nation.name,
+  ...  )
+  ...  .select(
+  ...     year=q.year,
+  ...     cust_nation=q.cust_nation,
+  ...     supp_nation=q.supp_nation,
+  ...     revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum()
+  ...  )
+  ...  .sort(q.supp_nation, q.cust_nation, q.year)
+  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
+  [{'year': 1995, 'revenue': 263047.8824, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'},
+   {'year': 1996, 'revenue': 154119.1338, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'}]
