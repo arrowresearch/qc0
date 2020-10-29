@@ -128,19 +128,19 @@ def RelTable_to_sql(rel: RelTable, from_obj):
 
 @rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-    table = rel.fk.column.table
+    val, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
     from_obj, _ = from_obj.join_at(
-        table, (rel.fk.parent.name, rel.fk.column.name)
+        rel.fk.column.table,
+        (rel.fk.parent.name, rel.fk.column.name),
     )
-    return value, from_obj
+    return val, from_obj
 
 
 @rel_to_sql.register
 def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
-        sel = (
+        from_obj = From.make(
             table.select()
             .correlate(from_obj.at)
             .where(
@@ -148,19 +148,12 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
                 == from_obj.at.columns[rel.fk.column.name]
             )
         )
-        return None, From.make(sel)
-    elif isinstance(rel.rel, RelAggregateParent):
-        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-        table = rel.fk.parent.table
-        from_obj, _ = from_obj.join_at(
-            table, (rel.fk.column.name, rel.fk.parent.name)
-        )
-        return value, from_obj
+        return None, from_obj
     else:
         value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-        table = rel.fk.parent.table
         from_obj, _ = from_obj.join_at(
-            table, (rel.fk.column.name, rel.fk.parent.name)
+            rel.fk.parent.table,
+            (rel.fk.column.name, rel.fk.parent.name),
         )
         return value, from_obj
 
@@ -170,16 +163,14 @@ def RelTake_to_sql(rel: RelTake, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
     at = from_obj.at
     take, from_obj = expr_to_sql(rel.take, from_obj)
-    from_obj = from_obj.replace(at=at)
-    sel = (
+    from_obj = From.make(
         sa.select(
-            [*from_obj.group_by_columns, from_obj.at],
+            [*from_obj.group_by_columns, at],
             from_obj=from_obj.current,
         )
         .limit(take)
         .alias()
     )
-    from_obj = From.make(sel)
     return val, from_obj
 
 
