@@ -59,6 +59,7 @@ from .op import (
     ExprConst,
     ExprApply,
     Field,
+    Sort,
 )
 
 
@@ -351,16 +352,14 @@ def Apply_to_op(syn: Apply, parent: Op):
         return parent.replace(rel=rel)
     elif syn.name == "sort":
         assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
-        args = []
+        sort = []
         for arg in syn.args:
-            desc = False
-            if isinstance(arg, Desc):
-                desc = True
-                arg = arg.syn
+            arg, desc = (
+                (arg.syn, True) if isinstance(arg, Desc) else (arg, False)
+            )
             arg = run_to_op(arg, make_parent(parent))
-            args.append((arg, desc))
-
-        rel = RelSort.wrap(parent.rel, rel=parent.rel, args=args)
+            sort.append(Sort(expr=arg, desc=desc))
+        rel = RelSort.wrap(parent.rel, rel=parent.rel, sort=sort)
         return parent.replace(rel=rel)
     elif syn.name == "group":
         assert (

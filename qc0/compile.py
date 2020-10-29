@@ -186,23 +186,21 @@ def RelTake_to_sql(rel: RelTake, from_obj):
 @rel_to_sql.register
 def RelSort_to_sql(rel: RelSort, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
-    # reparent
-    prev_at = from_obj.at
-    args = []
-    for arg, desc in rel.args:
-        arg, inner_from_obj = expr_to_sql(arg, from_obj)
-        from_obj = from_obj.replace(current=inner_from_obj.current)
-        if desc:
-            arg = arg.desc()
-        args.append(arg)
-    sel = (
+    at = from_obj.at
+    order_by = []
+    for sort in rel.sort:
+        col, from_obj = expr_to_sql(sort.expr, from_obj.replace(at=at))
+        if sort.desc:
+            col = col.desc()
+        order_by.append(col)
+    from_obj = From.make(
         sa.select(
-            [*from_obj.group_by_columns, prev_at], from_obj=from_obj.current
+            [*from_obj.group_by_columns, at],
+            from_obj=from_obj.current,
         )
-        .order_by(*args)
+        .order_by(*order_by)
         .alias()
     )
-    from_obj = From.make(sel)
     return val, from_obj
 
 

@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List
 from sqlalchemy import Table, Column, ForeignKey
 from .base import Struct, undefined
 from .scope import Scope, Cardinality
@@ -76,7 +76,7 @@ class RelFilter(Rel):
 
 class RelSort(Rel):
     rel: Rel
-    args: List[Tuple[Expr, bool]]
+    sort: List[Sort]
 
 
 class RelGroup(Rel):
@@ -134,3 +134,8 @@ class ExprApply(Expr):
 class Field(Struct):
     name: str
     expr: Expr
+
+
+class Sort(Struct):
+    expr: Expr
+    desc: bool
