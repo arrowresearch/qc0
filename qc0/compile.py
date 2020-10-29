@@ -207,18 +207,13 @@ def RelSort_to_sql(rel: RelSort, from_obj):
 @rel_to_sql.register
 def RelFilter_to_sql(rel: RelFilter, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
-    # reparent
-    prev_at = from_obj.at
-    expr, inner_from_obj = expr_to_sql(rel.expr, from_obj)
-    from_obj = from_obj.replace(current=inner_from_obj.current)
-    sel = (
-        sa.select(
-            [*from_obj.group_by_columns, prev_at], from_obj=from_obj.current
-        )
+    at = from_obj.at
+    expr, from_obj = expr_to_sql(rel.expr, from_obj)
+    from_obj = From.make(
+        sa.select([*from_obj.group_by_columns, at], from_obj=from_obj.current)
         .where(expr)
         .alias()
     )
-    from_obj = From.make(sel)
     return val, from_obj
 
 
