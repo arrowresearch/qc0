@@ -49,7 +49,7 @@ from .op import (
     RelFilter,
     RelSort,
     RelGroup,
-    RelForkParent,
+    RelAroundParent,
     Expr,
     ExprOp,
     ExprOpAggregate,
@@ -324,7 +324,7 @@ def Select_to_op(syn: Select, parent: Op):
 
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
-    if syn.name == "fork":
+    if syn.name == "around":
         assert len(syn.args) <= 1
         through = syn.args[0] if syn.args else None
         if isinstance(parent.rel, RelParent):
@@ -334,7 +334,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             syn = parent.syn
             scope = parent.scope
         if through:
-            on = run_to_op(through, parent.replace(rel=RelForkParent()))
+            on = run_to_op(through, parent.replace(rel=RelAroundParent()))
             return run_to_op(syn, on)
         else:
             return run_to_op(parent.syn, parent.replace(card=Cardinality.SEQ))

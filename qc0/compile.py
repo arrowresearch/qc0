@@ -16,7 +16,7 @@ from .op import (
     RelFilter,
     RelSort,
     RelGroup,
-    RelForkParent,
+    RelAroundParent,
     Expr,
     ExprOp,
     ExprOpAggregate,
@@ -123,7 +123,7 @@ def RelTable_to_sql(rel: RelTable, from_obj):
 
 @rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj):
-    if isinstance(rel.rel, RelForkParent):
+    if isinstance(rel.rel, RelAroundParent):
         table = rel.fk.column.table
         from_obj = From.make(
             table.select()

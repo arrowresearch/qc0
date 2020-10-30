@@ -142,7 +142,7 @@ SQL::
   ...     q.part.type.like('%NICKEL') &
   ...     (q.part.size == 45)
   ...  )
-  ...  .filter(q.supplycost == q.fork(q.part).supplycost.min())
+  ...  .filter(q.supplycost == q.around(q.part).supplycost.min())
   ...  .select(
   ...     s_acctbal=q.supplier.acctbal,
   ...     s_name=q.supplier.name,

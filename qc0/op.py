@@ -86,7 +86,7 @@ class RelAggregateParent(Rel):
     pass
 
 
-class RelForkParent(Rel):
+class RelAroundParent(Rel):
     pass
 
 

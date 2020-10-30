@@ -1418,9 +1418,9 @@ def test_group_group_with_take(snapshot):
     assert_result_matches(snapshot, query)
 
 
-def test_fork_ok(snapshot):
+def test_around_ok(snapshot):
     query = q.region.filter(q.name.substring(1, 1) == "A").select(
-        n=q.name, nn=q.fork().count()
+        n=q.name, nn=q.around().count()
     )
     assert run(query, print_op=True) == n(
         """
@@ -1447,10 +1447,10 @@ def test_fork_ok(snapshot):
     )
 
 
-def test_fork_through_ok(snapshot):
+def test_around_through_ok(snapshot):
     query = q.nation.select(
         n=q.name,
-        nn=q.fork(q.region).filter(q.region.name == "EUROPE").count(),
+        nn=q.around(q.region).filter(q.region.name == "EUROPE").count(),
     )
     assert run(query, print_op=True) == n(
         """
