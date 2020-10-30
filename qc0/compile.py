@@ -16,6 +16,7 @@ from .op import (
     RelFilter,
     RelSort,
     RelGroup,
+    RelForkParent,
     Expr,
     ExprOp,
     ExprOpAggregate,
@@ -122,12 +123,24 @@ def RelTable_to_sql(rel: RelTable, from_obj):
 
 @rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj):
-    val, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-    from_obj, _ = from_obj.join_at(
-        rel.fk.column.table,
-        (rel.fk.parent.name, rel.fk.column.name),
-    )
-    return val, from_obj
+    if isinstance(rel.rel, RelForkParent):
+        table = rel.fk.column.table
+        from_obj = From.make(
+            table.select()
+            .correlate(from_obj.at)
+            .where(
+                table.columns[rel.fk.column.name]
+                == from_obj.at.columns[rel.fk.parent.name]
+            )
+        )
+        return None, from_obj
+    else:
+        val, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
+        from_obj, _ = from_obj.join_at(
+            rel.fk.column.table,
+            (rel.fk.parent.name, rel.fk.column.name),
+        )
+        return val, from_obj
 
 
 @rel_to_sql.register

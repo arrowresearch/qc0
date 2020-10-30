@@ -49,6 +49,7 @@ from .op import (
     RelFilter,
     RelSort,
     RelGroup,
+    RelForkParent,
     Expr,
     ExprOp,
     ExprOpAggregate,
@@ -71,6 +72,7 @@ def make_parent(parent):
         expr=None,
         scope=parent.scope,
         card=Cardinality.ONE,
+        syn=None,
     )
 
 
@@ -81,6 +83,7 @@ def plan(syn: Syn, meta: sa.MetaData):
         expr=None,
         card=Cardinality.ONE,
         scope=UnivScope(tables=meta.tables),
+        syn=None,
     )
     return build_op(syn, parent)
 
@@ -107,6 +110,7 @@ def build_op_expr(op: Op):
                 expr=ExprRecord(fields=fields),
                 card=op.card,
                 scope=op.scope,
+                syn=Select(fields=op.scope.fields),
             )
         if isinstance(op.scope, TableScope):
             expr = ExprIdentity(table=op.scope.table)
@@ -115,6 +119,7 @@ def build_op_expr(op: Op):
                 expr=ExprIdentity(table=op.scope.table),
                 scope=EmptyScope(),
                 card=op.card,
+                syn=op.syn,
             )
         if isinstance(op.scope, GroupScope):
             # From GroupScope we select
@@ -136,11 +141,18 @@ def build_op_expr(op: Op):
                             rel=RelParent(parent=op),
                             card=Cardinality.ONE,
                             scope=EmptyScope(),
+                            syn=Nav(name),
                         )
                     ),
                 )
             expr = ExprRecord(fields=fields)
-            return Op(rel=op.rel, expr=expr, card=op.card, scope=op.scope)
+            return Op(
+                rel=op.rel,
+                expr=expr,
+                card=op.card,
+                scope=op.scope,
+                syn=None,
+            )
         assert False, f"unable to build an expr at this scope: {op!r}"
     return op
 
@@ -183,6 +195,7 @@ def Nav_to_op(syn: Nav, parent: Op):
             expr=None,
             card=Cardinality.SEQ,
             scope=TableScope(table=table),
+            syn=syn,
         )
 
     elif isinstance(parent.scope, TableScope):
@@ -194,6 +207,7 @@ def Nav_to_op(syn: Nav, parent: Op):
             return parent.grow_expr(
                 scope=next_scope,
                 expr=ExprColumn(column=column),
+                syn=syn,
             )
 
         fk = parent.scope.foreign_keys.get(syn.name)
@@ -202,6 +216,7 @@ def Nav_to_op(syn: Nav, parent: Op):
             return parent.grow_rel(
                 rel=RelJoin(rel=parent.rel, fk=fk),
                 scope=TableScope(table=fk.column.table),
+                syn=syn,
             )
 
         fk = parent.scope.rev_foreign_keys.get(syn.name)
@@ -211,6 +226,7 @@ def Nav_to_op(syn: Nav, parent: Op):
                 rel=RelRevJoin(rel=parent.rel, fk=fk),
                 scope=TableScope(table=fk.parent.table),
                 card=Cardinality.SEQ,
+                syn=syn,
             )
 
         assert False, f"Unable to lookup {syn.name}"  # pragma: no cover
@@ -237,6 +253,7 @@ def Nav_to_op(syn: Nav, parent: Op):
                     expr=None,
                     card=Cardinality.SEQ,
                     scope=parent.scope.scope,
+                    syn=syn,
                 )
 
             def wrap(op):
@@ -250,6 +267,7 @@ def Nav_to_op(syn: Nav, parent: Op):
                 return parent.grow_expr(
                     expr=ExprColumn(column=sa.column(name)),
                     scope=EmptyScope(),
+                    syn=syn,
                 )
 
             rel = RelAggregateParent()
@@ -260,13 +278,14 @@ def Nav_to_op(syn: Nav, parent: Op):
                     expr=None,
                     scope=parent.scope.scope,
                     card=Cardinality.SEQ,
+                    syn=syn,
                 ),
                 wrap,
             )
         if syn.name in parent.scope.fields:
             field = parent.scope.fields[syn.name]
             expr = ExprColumn(column=sa.column(syn.name))
-            return parent.grow_expr(expr=expr, scope=EmptyScope())
+            return parent.grow_expr(expr=expr, scope=EmptyScope(), syn=syn)
         else:
             names = ", ".join(parent.scope.fields)  # pragma: no cover
             assert (  # pragma: no cover
@@ -278,7 +297,7 @@ def Nav_to_op(syn: Nav, parent: Op):
         next_scope = type_scope(type)
         assert transform is not None, f"Unable to lookup {syn.name}"
         expr = ExprApply(expr=ExprOp(parent), args=(), compile=transform)
-        return parent.grow_expr(expr=expr, scope=next_scope)
+        return parent.grow_expr(expr=expr, scope=next_scope, syn=syn)
 
     elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
         assert (
@@ -306,8 +325,19 @@ def Select_to_op(syn: Select, parent: Op):
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
     if syn.name == "fork":
-        assert len(syn.args) == 0
-        return parent.rel.parent
+        assert len(syn.args) <= 1
+        through = syn.args[0] if syn.args else None
+        if isinstance(parent.rel, RelParent):
+            syn = parent.rel.parent.syn
+            scope = parent.rel.parent.scope
+        else:
+            syn = parent.syn
+            scope = parent.scope
+        if through:
+            on = run_to_op(through, parent.replace(rel=RelForkParent()))
+            return run_to_op(syn, on)
+        else:
+            return run_to_op(parent.syn, parent.replace(card=Cardinality.SEQ))
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
@@ -316,14 +346,14 @@ def Apply_to_op(syn: Apply, parent: Op):
         assert parent.card >= Cardinality.SEQ
         assert take.card == Cardinality.ONE
         rel = RelTake(rel=parent.rel, take=ExprOp(take))
-        return parent.grow_rel(rel=rel)
+        return parent.grow_rel(rel=rel, syn=syn)
     elif syn.name == "first":
         assert len(syn.args) == 0, "first(): expected no arguments"
         take = run_to_op(make_value(1), make_parent(parent))
         assert parent.card >= Cardinality.SEQ
         assert take.card >= Cardinality.ONE
         rel = RelTake(rel=parent.rel, take=ExprOp(take))
-        return parent.grow_rel(rel=rel, card=Cardinality.ONE)
+        return parent.grow_rel(rel=rel, syn=syn, card=Cardinality.ONE)
     elif syn.name == "filter":
         assert len(syn.args) == 1, "filter(...): expected a single argument"
         expr = syn.args[0]
@@ -332,7 +362,7 @@ def Apply_to_op(syn: Apply, parent: Op):
         ), f"{syn.name}(...): expected a sequence of items"
         expr = run_to_op(expr, make_parent(parent))
         rel = RelFilter(rel=parent.rel, expr=ExprOp(expr))
-        return parent.grow_rel(rel=rel)
+        return parent.grow_rel(rel=rel, syn=syn)
     elif syn.name == "sort":
         assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
         sort = []
@@ -344,7 +374,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             assert arg.card == Cardinality.ONE
             sort.append(Sort(expr=ExprOp(arg), desc=desc))
         rel = RelSort(rel=parent.rel, sort=sort)
-        return parent.grow_rel(rel=rel)
+        return parent.grow_rel(rel=rel, syn=syn)
     elif syn.name == "group":
         assert (
             parent.card >= Cardinality.SEQ
@@ -366,7 +396,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             fields=fields,
             aggregates=scope.aggregates,
         )
-        return parent.grow_rel(rel=rel, scope=scope)
+        return parent.grow_rel(rel=rel, syn=syn, scope=scope)
     else:
 
         sig = AggrSig.get(syn.name)
@@ -377,6 +407,7 @@ def Apply_to_op(syn: Apply, parent: Op):
                 rel=RelVoid(),
                 scope=EmptyScope(),
                 card=Cardinality.ONE,
+                syn=syn,
             )
 
         sig = FuncSig.get(syn.name)
@@ -393,7 +424,7 @@ def Apply_to_op(syn: Apply, parent: Op):
                 compile=sig.compile,
                 args=args,
             )
-            return parent.grow_expr(expr)
+            return parent.grow_expr(expr, syn=syn)
 
         assert sig, f"unknown query combinator {syn.name}()"
 
@@ -424,25 +455,25 @@ def BinOp_to_op(syn: BinOp, parent: Op):
 
     if a.card > b.card:
         expr = make(a.expr, bk(b))
-        a = ak(a.grow_expr(expr=expr))
+        a = ak(a.grow_expr(expr=expr, syn=syn.a))
         expr = ExprOp(a)
     elif a.card < b.card:
         expr = make(ak(a), b.expr)
-        b = bk(b.grow_expr(expr=expr))
+        b = bk(b.grow_expr(expr=expr, syn=syn.b))
         expr = ExprOp(b)
     else:
         a = ak(a)
         b = bk(b)
         expr = make(a, b)
     card = parent.card * a.card * b.card
-    return parent.grow_expr(expr, scope=EmptyScope(), card=card)
+    return parent.grow_expr(expr, scope=EmptyScope(), card=card, syn=syn)
 
 
 @to_op.register
 def Literal_to_op(syn: Literal, parent: Op):
     assert isinstance(parent, Op), parent
     expr = ExprConst(value=syn.value, embed=embed(syn.type))
-    return parent.grow_expr(expr, scope=type_scope(syn.type))
+    return parent.grow_expr(expr, scope=type_scope(syn.type), syn=syn)
 
 
 @to_op.register

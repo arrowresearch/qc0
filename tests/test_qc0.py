@@ -1416,3 +1416,61 @@ def test_group_group_with_take(snapshot):
         """
     )
     assert_result_matches(snapshot, query)
+
+
+def test_fork_ok(snapshot):
+    query = q.region.filter(q.name.substring(1, 1) == "A").select(
+        n=q.name, nn=q.fork().count()
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('n', anon_1.name, 'nn', anon_2.value) AS value
+        FROM
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           WHERE SUBSTRING(region_1.name
+                           FROM 1
+                           FOR 1) = 'A') AS anon_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
+           FROM
+             (SELECT region_1.id AS id,
+                     region_1.name AS name,
+                     region_1.comment AS COMMENT
+              FROM region AS region_1
+              WHERE SUBSTRING(region_1.name
+                              FROM 1
+                              FOR 1) = 'A') AS anon_1) AS anon_2 ON TRUE
+        """
+    )
+
+
+def test_fork_through_ok(snapshot):
+    query = q.nation.select(
+        n=q.name,
+        nn=q.fork(q.region).filter(q.region.name == "EUROPE").count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('n', nation_1.name, 'nn', anon_1.value) AS value
+        FROM nation AS nation_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
+           FROM
+             (SELECT nation_2.id AS id,
+                     nation_2.name AS name,
+                     nation_2.region_id AS region_id,
+                     nation_2.comment AS COMMENT
+              FROM
+                (SELECT region.id AS id,
+                        region.name AS name,
+                        region.comment AS COMMENT
+                 FROM region
+                 WHERE region.id = nation_1.region_id) AS anon_3
+              JOIN nation AS nation_2 ON anon_3.id = nation_2.region_id
+              JOIN region AS region_1 ON nation_2.region_id = region_1.id
+              WHERE region_1.name = 'EUROPE') AS anon_2) AS anon_1 ON TRUE
+        """
+    )

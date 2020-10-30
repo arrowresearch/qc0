@@ -15,6 +15,7 @@ from sqlalchemy import Table, ForeignKey
 from sqlalchemy.sql.elements import ColumnClause
 from .base import Struct, undefined
 from .scope import Scope, Cardinality
+from .syntax import Syn, Compose
 
 
 class Op(Struct):
@@ -22,21 +23,36 @@ class Op(Struct):
     card: Cardinality
     rel: Rel
     expr: Optional[Expr]
+    syn: Optional[Syn] = None
 
-    def grow_expr(self, expr, scope=undefined, card=undefined):
+    def grow_expr(self, expr, syn=None, scope=undefined, card=undefined):
         card = self.card if card is undefined else card
         scope = self.scope if scope is undefined else scope
-        return self.replace(expr=expr, scope=scope, card=card)
+        syn = (
+            Compose(self.syn, syn)
+            if self.syn and syn
+            else self.syn
+            if self.syn
+            else syn
+        )
+        return self.replace(expr=expr, scope=scope, card=card, syn=syn)
 
-    def grow_rel(self, rel, scope=undefined, card=undefined):
+    def grow_rel(self, rel, syn=None, scope=undefined, card=undefined):
         card = self.card if card is undefined else card
         scope = self.scope if scope is undefined else scope
-        return self.replace(rel=rel, scope=scope, card=card)
+        syn = (
+            Compose(self.syn, syn)
+            if self.syn and syn
+            else self.syn
+            if self.syn
+            else syn
+        )
+        return self.replace(rel=rel, scope=scope, card=card, syn=syn)
 
     def __yaml__(self):
         rep = super(Op, self).__yaml__()
-        if "scope" in rep:
-            rep.pop("scope")
+        rep.pop("scope")
+        rep.pop("syn")
         return rep
 
 
@@ -67,6 +83,10 @@ class RelParent(Rel):
 
 
 class RelAggregateParent(Rel):
+    pass
+
+
+class RelForkParent(Rel):
     pass
 
 
