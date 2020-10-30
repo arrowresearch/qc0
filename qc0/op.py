@@ -10,17 +10,28 @@
 """
 
 from __future__ import annotations
-from typing import Any, Callable, Dict, List
-from sqlalchemy import Table, Column, ForeignKey
+from typing import Any, Callable, Dict, List, Optional
+from sqlalchemy import Table, ForeignKey
+from sqlalchemy.sql.elements import ColumnClause
 from .base import Struct, undefined
 from .scope import Scope, Cardinality
 
 
 class Op(Struct):
-    """ Base class for ops."""
-
     scope: Scope
     card: Cardinality
+    rel: Rel
+    expr: Optional[Expr]
+
+    def grow_expr(self, expr, scope=undefined, card=undefined):
+        card = self.card if card is undefined else card
+        scope = self.scope if scope is undefined else scope
+        return self.replace(expr=expr, scope=scope, card=card)
+
+    def grow_rel(self, rel, scope=undefined, card=undefined):
+        card = self.card if card is undefined else card
+        scope = self.scope if scope is undefined else scope
+        return self.replace(rel=rel, scope=scope, card=card)
 
     def __yaml__(self):
         rep = super(Op, self).__yaml__()
@@ -28,17 +39,12 @@ class Op(Struct):
             rep.pop("scope")
         return rep
 
-    @classmethod
-    def wrap(cls, op: Op, **kw):
-        kw = {"scope": op.scope, "card": op.card, **kw}
-        return cls(**kw)
 
-
-class Rel(Op):
+class Rel(Struct):
     """ Base class for ops which query data."""
 
 
-class RelVoid(Op):
+class RelVoid(Rel):
     pass
 
 
@@ -57,7 +63,7 @@ class RelRevJoin(Rel):
 
 
 class RelParent(Rel):
-    parent: ExprRel
+    parent: Op
 
 
 class RelAggregateParent(Rel):
@@ -85,21 +91,17 @@ class RelGroup(Rel):
     aggregates: Dict[str, Field]
 
 
-class Expr(Op):
+class Expr(Struct):
     """ Base class for ops which expr a new value."""
 
 
-class ExprRel(Expr):
-    rel: Rel
-    expr: Expr
+class ExprOp(Expr):
+    op: Op
 
-    def replace_expr(self, expr):
-        return self.replace(expr=expr, scope=expr.scope, card=expr.card)
 
-    def replace_rel(self, rel, expr=undefined):
-        if expr is undefined:
-            expr = self.expr
-        return self.replace(expr=expr, rel=rel, scope=rel.scope, card=rel.card)
+class ExprOpAggregate(Expr):
+    op: Op
+    sig: Any
 
 
 class ExprRecord(Expr):
@@ -107,17 +109,11 @@ class ExprRecord(Expr):
 
 
 class ExprColumn(Expr):
-    column: Column
+    column: ColumnClause
 
 
 class ExprIdentity(Expr):
     table: Table
-
-
-class ExprAggregateRel(Expr):
-    rel: Rel
-    expr: Expr
-    sig: Any
 
 
 class ExprConst(Expr):
@@ -126,7 +122,7 @@ class ExprConst(Expr):
 
 
 class ExprApply(Expr):
-    expr: Expr
+    expr: Optional[Expr]
     args: List[Expr]
     compile: Callable[[Expr, List[Expr]], Any]
 

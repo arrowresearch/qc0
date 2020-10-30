@@ -4,6 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.sql.selectable import Selectable, Join, Alias
 from .base import Struct
 from .op import (
+    Op,
     Rel,
     RelVoid,
     RelTable,
@@ -16,8 +17,8 @@ from .op import (
     RelSort,
     RelGroup,
     Expr,
-    ExprRel,
-    ExprAggregateRel,
+    ExprOp,
+    ExprOpAggregate,
     ExprRecord,
     ExprColumn,
     ExprIdentity,
@@ -26,17 +27,10 @@ from .op import (
 )
 
 
-def compile(op):
+def compile(op: Op):
     """ Compile operations into SQL."""
-    from_obj = From.make(None)
-    if isinstance(op, Rel):
-        value, from_obj = rel_to_sql(op, from_obj)
-        return from_obj.to_select(value)
-    elif isinstance(op, Expr):
-        value, from_obj = expr_to_sql(op, from_obj)
-        return from_obj.to_select(value)
-    else:
-        assert False  # pragma: no cover
+    value, from_obj = op_to_sql(op, From.make(None))
+    return from_obj.to_select(value)
 
 
 class From(Struct):
@@ -255,13 +249,9 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
     for name, expr in rel.aggregates.items():
-        assert isinstance(expr, ExprAggregateRel)
+        assert isinstance(expr, ExprOpAggregate), str(expr)
         columns, kernel = build_kernel()
-        value, inner_from_obj = rel_to_sql(expr.rel, from_obj=kernel)
-        if expr.expr is not None:
-            value, inner_from_obj = expr_to_sql(
-                expr.expr, from_obj=inner_from_obj
-            )
+        value, inner_from_obj = op_to_sql(expr.op, from_obj=kernel)
         value = expr.sig.compile([value])
         if kernel.current in inner_from_obj.current._from_objects:
             cols = columns
@@ -288,6 +278,13 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
     return None, from_obj
 
 
+def op_to_sql(op: Op, from_obj):
+    expr, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    if op.expr is not None:
+        expr, from_obj = expr_to_sql(op.expr, from_obj=from_obj)
+    return expr, from_obj
+
+
 @singledispatch
 def expr_to_sql(expr: Expr, from_obj):
     raise NotImplementedError(  # pragma: no cover
@@ -296,18 +293,13 @@ def expr_to_sql(expr: Expr, from_obj):
 
 
 @expr_to_sql.register
-def ExprRel_to_sql(op: ExprRel, from_obj):
-    expr, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
-    if op.expr is not None:
-        expr, from_obj = expr_to_sql(op.expr, from_obj=from_obj)
-    return expr, from_obj
+def ExprOp_to_sql(expr: ExprOp, from_obj):
+    return op_to_sql(expr.op, from_obj)
 
 
 @expr_to_sql.register
-def ExprAggregateRel_to_sql(op: ExprAggregateRel, from_obj):
-    expr, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
-    if op.expr is not None:
-        expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
+def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
+    expr, inner_from_obj = op_to_sql(op.op, from_obj)
     value = op.sig.compile([expr])
     sel = inner_from_obj.to_select(value)
     if from_obj.at is not None:

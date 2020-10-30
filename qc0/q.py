@@ -49,9 +49,10 @@ class Q:
             name: syntax.Field(syn=to_syn(syn), name=name)
             for name, syn in fields.items()
         }
-        return self._make(
-            syntax.Compose(self.syn, syntax.Select(fields=fields))
-        )
+        syn = syntax.Select(fields=fields)
+        if self.syn is not None:
+            syn = syntax.Compose(self.syn, syn)
+        return self._make(syn)
 
     def group(self, **fields):
         fields = {

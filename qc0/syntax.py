@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from functools import singledispatch
 from datetime import date
-from typing import List, Any
+from typing import Dict, List, Union, Any
 
 from sqlalchemy.dialects import postgresql as sa_pg
 import sqlalchemy as sa
@@ -42,7 +42,7 @@ class Select(Syn):
 
     """
 
-    fields: List[Field]
+    fields: Dict[str, Field]
 
 
 class Field(Struct):
@@ -66,7 +66,7 @@ class Apply(Syn):
     """
 
     name: str
-    args: List[Syn]
+    args: Union[Dict[str, Field], List[Syn]]
 
 
 class Literal(Syn):

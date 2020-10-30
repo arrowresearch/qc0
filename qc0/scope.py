@@ -84,7 +84,7 @@ class RecordScope(Scope):
     fields: Dict[str, Field]
 
     def __yaml__(self):
-        return {"scope": self.scope, "fields": list(self.fields)}
+        return {"parent": self.parent, "fields": list(self.fields)}
 
 
 class GroupScope(Scope):
