@@ -306,10 +306,8 @@ def Select_to_op(syn: Select, parent: Op):
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
     if syn.name == "fork":
-        assert len(syn.args) == 0, "fork(...): takes no arguments"
-        while isinstance(parent.rel, RelParent):
-            parent = parent.rel.parent
-        return parent
+        assert len(syn.args) == 0
+        return parent.rel.parent
     elif syn.name == "take":
         assert len(syn.args) == 1, "take(...): expected a single argument"
         take = syn.args[0]
@@ -355,8 +353,13 @@ def Apply_to_op(syn: Apply, parent: Op):
         scope = GroupScope(scope=parent.scope, fields=syn.args, aggregates={})
         fields = {}
         for name, f in syn.args.items():
-            expr = run_to_op(f.syn, make_parent(parent))
-            fields[name] = Field(expr=ExprOp(expr), name=name)
+            op = run_to_op(f.syn, make_parent(parent))
+            if op.expr is None:
+                if isinstance(op.scope, TableScope):
+                    op = op.grow_expr(ExprIdentity(table=op.scope.table))
+                else:
+                    assert False, f"{syn.name}: unable to group by this"
+            fields[name] = Field(expr=ExprOp(op), name=name)
 
         rel = RelGroup(
             rel=parent.rel,

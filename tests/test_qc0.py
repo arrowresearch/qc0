@@ -1383,6 +1383,21 @@ def test_substring_rel_non_expr_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_group_by_link_ok(snapshot):
+    query = q.nation.group(n=q.region)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('n', anon_1.n) AS value
+        FROM
+          (SELECT CAST(row(region_1.name) AS VARCHAR) AS n
+           FROM nation AS nation_1
+           JOIN region AS region_1 ON nation_1.region_id = region_1.id
+           GROUP BY CAST(row(region_1.name) AS VARCHAR)) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 @pytest.mark.xfail
 def test_group_nav_after_take(snapshot):
     query = q.region.group(n=q.name).take(1)._

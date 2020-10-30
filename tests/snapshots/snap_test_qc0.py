@@ -385,6 +385,15 @@ snapshots[
 """
 
 snapshots[
+    "test_group_by_link_ok 1"
+] = """- n: (ASIA)
+- n: ("MIDDLE EAST")
+- n: (AMERICA)
+- n: (EUROPE)
+- n: (AFRICA)
+"""
+
+snapshots[
     "test_group_nation_by_region_select_aggr_array_ok 1"
 ] = """- all:
   - INDIA
