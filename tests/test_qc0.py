@@ -1474,3 +1474,21 @@ def test_around_through_ok(snapshot):
               WHERE region_1.name = 'EUROPE') AS anon_2) AS anon_1 ON TRUE
         """
     )
+
+
+@pytest.mark.xfail
+def test_nav_around_ok(snapshot):
+    query = q.region.around().name
+    assert run(query, print_op=True) == n(
+        """
+        """
+    )
+
+
+@pytest.mark.xfail
+def test_nav_around_through_ok(snapshot):
+    query = q.nation.around(q.region).name
+    assert run(query, print_op=True) == n(
+        """
+        """
+    )
