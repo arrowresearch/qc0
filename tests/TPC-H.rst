@@ -134,52 +134,63 @@ SQL::
     s_name,
     p_partkey;
 
-First, let's query for all ``partsupp`` in the region::
-
-  >>> _ = (q.partsupp
-  ...  .filter(q.supplier.nation.region.name == 'EUROPE'))
-
-Now let's keep only those which supply at the minimum cost::
-
-  >>> _ = (q.partsupp
-  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
-  ...  .filter(q.supplycost == q.fork().supplycost.min()))
-
-Now we can add filters by type and size::
-
-  >>> _ = (q.partsupp
-  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
-  ...  .filter(q.supplycost == q.fork().supplycost.min())
-  ...  .filter(
-  ...     q.part.type.like('%NICKEL') &
-  ...     (q.part.size == 45)
-  ...  ))
-
-Finally we can select needed columns::
+::
 
   >>> (q.partsupp
-  ...  .filter(q.supplier.nation.region.name == 'EUROPE')
-  ...  .filter(q.supplycost == q.fork().supplycost.min())
   ...  .filter(
+  ...     (q.supplier.nation.region.name == 'EUROPE') &
   ...     q.part.type.like('%NICKEL') &
   ...     (q.part.size == 45)
   ...  )
+  ...  .filter(q.supplycost == q.fork(q.part).supplycost.min())
   ...  .select(
   ...     s_acctbal=q.supplier.acctbal,
   ...     s_name=q.supplier.name,
   ...     n_name=q.supplier.nation.name,
+  ...     p_name=q.part.name,
   ...     p_mfgr=q.part.mfgr,
   ...     s_address=q.supplier.address,
   ...     s_phone=q.supplier.phone,
   ...     s_comment=q.supplier.comment,
   ...  )
+  ...  .sort(
+  ...     q.s_acctbal.desc(),
+  ...     q.n_name,
+  ...     q.s_name,
+  ...     q.p_name
+  ...  )
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
   [{'n_name': 'RUSSIA',
     'p_mfgr': 'Manufacturer#1',
+    'p_name': 'spring wheat purple chiffon puff',
     's_name': 'Supplier#000000025',
     's_phone': '32-431-945-3541',
     's_acctbal': 9198.31,
     's_address': 'RCQKONXMFnrodzz6w7fObFVV6CUm2q',
+    's_comment': '...'},
+   {'n_name': 'ROMANIA',
+    'p_mfgr': 'Manufacturer#4',
+    'p_name': 'thistle sky antique khaki chartreuse',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494',
+    's_acctbal': 9202.57,
+    's_address':
+    'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb', 's_comment': '...'},
+   {'n_name': 'ROMANIA',
+    'p_mfgr': 'Manufacturer#1',
+    'p_name': 'pink powder mint moccasin navajo',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494',
+    's_acctbal': 9202.57,
+    's_address': 'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb',
+    's_comment': '...'},
+   {'n_name': 'ROMANIA',
+    'p_mfgr': 'Manufacturer#1',
+    'p_name': 'olive purple turquoise cornflower honeydew',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494',
+    's_acctbal': 9202.57,
+    's_address': 'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb',
     's_comment': '...'}]
 
 Shipping Priority Query (Q3)
