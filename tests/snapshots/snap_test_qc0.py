@@ -313,6 +313,11 @@ snapshots[
 """
 
 snapshots[
+    "test_filter_multiple_ok 1"
+] = """- (AFRICA)
+"""
+
+snapshots[
     "test_filter_nation_by_region_name_ok 1"
 ] = """- (ALGERIA)
 - (ETHIOPIA)

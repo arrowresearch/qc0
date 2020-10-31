@@ -2,7 +2,7 @@
 line_length = 79
 
 [tool.pytest.ini_options]
-addopts = "-p no:warnings --tb=native"
+addopts = "-p no:warnings --tb=native -vv"
 
 [tool.poetry]
 name = "qc0"

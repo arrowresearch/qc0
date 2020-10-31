@@ -513,13 +513,9 @@ def test_filter_region_name_ok(snapshot):
     query = q.region.filter(q.name == "AFRICA")
     assert run(query, print_op=True) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -591,13 +587,9 @@ def test_filter_region_true_ok(snapshot):
     query = q.region.filter(False)
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE FALSE) AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE FALSE
         """
     )
     assert_result_matches(snapshot, query)
@@ -607,13 +599,9 @@ def test_filter_region_by_name_ok(snapshot):
     query = q.region.filter(q.name == "AFRICA")
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -623,13 +611,9 @@ def test_filter_region_by_name_then_nav_ok(snapshot):
     query = q.region.filter(q.name == "AFRICA").name
     assert run(query) == n(
         """
-        SELECT anon_1.name AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT region_1.name AS value
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -641,22 +625,19 @@ def test_filter_region_by_name_then_select_ok(snapshot):
     )
     assert run(query) == n(
         """
-        SELECT jsonb_build_object('name', anon_1.name, 'nation_names', anon_2.value) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT jsonb_build_object('name', region_1.name, 'nation_names', anon_1.value) AS value
+        FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_3.name) AS value
+          (SELECT jsonb_agg(anon_2.name) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
                      nation_1.region_id AS region_id,
                      nation_1.comment AS COMMENT
               FROM nation AS nation_1
-              WHERE nation_1.region_id = anon_1.id) AS anon_3) AS anon_2 ON TRUE
+              WHERE nation_1.region_id = region_1.id
+                AND region_1.name = 'AFRICA') AS anon_2) AS anon_1 ON TRUE
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -666,15 +647,10 @@ def test_filter_nation_by_region_name_ok(snapshot):
     query = q.nation.filter(q.region.name == "AFRICA")
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT nation_1.id AS id,
-                  nation_1.name AS name,
-                  nation_1.region_id AS region_id,
-                  nation_1.comment AS COMMENT
-           FROM nation AS nation_1
-           JOIN region AS region_1 ON nation_1.region_id = region_1.id
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT CAST(row(nation_1.name) AS VARCHAR) AS value
+        FROM nation AS nation_1
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -684,15 +660,10 @@ def test_filter_nation_by_region_name_then_nav_column_ok(snapshot):
     query = q.nation.filter(q.region.name == "AFRICA").name
     assert run(query) == n(
         """
-        SELECT anon_1.name AS value
-        FROM
-          (SELECT nation_1.id AS id,
-                  nation_1.name AS name,
-                  nation_1.region_id AS region_id,
-                  nation_1.comment AS COMMENT
-           FROM nation AS nation_1
-           JOIN region AS region_1 ON nation_1.region_id = region_1.id
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT nation_1.name AS value
+        FROM nation AS nation_1
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -702,20 +673,11 @@ def test_filter_customer_by_region_name_then_nav_column_ok(snapshot):
     query = q.customer.filter(q.nation.region.name == "AFRICA").name
     assert run(query) == n(
         """
-        SELECT anon_1.name AS value
-        FROM
-          (SELECT customer_1.id AS id,
-                  customer_1.name AS name,
-                  customer_1.address AS address,
-                  customer_1.nation_id AS nation_id,
-                  customer_1.phone AS phone,
-                  customer_1.acctbal AS acctbal,
-                  customer_1.mktsegment AS mktsegment,
-                  customer_1.comment AS COMMENT
-           FROM customer AS customer_1
-           JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
-           JOIN region AS region_1 ON nation_1.region_id = region_1.id
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT customer_1.name AS value
+        FROM customer AS customer_1
+        JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA'
         """
     )
     # Too big to test
@@ -729,19 +691,10 @@ def test_filter_customer_by_region_name_then_count_ok(snapshot):
         SELECT anon_1.value AS value
         FROM
           (SELECT count(*) AS value
-           FROM
-             (SELECT customer_1.id AS id,
-                     customer_1.name AS name,
-                     customer_1.address AS address,
-                     customer_1.nation_id AS nation_id,
-                     customer_1.phone AS phone,
-                     customer_1.acctbal AS acctbal,
-                     customer_1.mktsegment AS mktsegment,
-                     customer_1.comment AS COMMENT
-              FROM customer AS customer_1
-              JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
-              JOIN region AS region_1 ON nation_1.region_id = region_1.id
-              WHERE region_1.name = 'AFRICA') AS anon_2) AS anon_1
+           FROM customer AS customer_1
+           JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
+           JOIN region AS region_1 ON nation_1.region_id = region_1.id
+           WHERE region_1.name = 'AFRICA') AS anon_1
         """
     )
     assert_result_matches(snapshot, query)
@@ -751,16 +704,11 @@ def test_filter_customer_nation_by_region_name_then_nav_column_ok(snapshot):
     query = q.customer.nation.filter(q.region.name == "AFRICA").name
     assert run(query) == n(
         """
-        SELECT anon_1.name AS value
-        FROM
-          (SELECT nation_1.id AS id,
-                  nation_1.name AS name,
-                  nation_1.region_id AS region_id,
-                  nation_1.comment AS COMMENT
-           FROM customer AS customer_1
-           JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
-           JOIN region AS region_1 ON nation_1.region_id = region_1.id
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT nation_1.name AS value
+        FROM customer AS customer_1
+        JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        WHERE region_1.name = 'AFRICA'
         """
     )
     # Too big to test
@@ -771,22 +719,31 @@ def test_filter_region_by_nation_count_ok(snapshot):
     query = q.region.filter(q.nation.count() == 5)
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           LEFT OUTER JOIN LATERAL
-             (SELECT count(*) AS value
-              FROM
-                (SELECT nation_1.id AS id,
-                        nation_1.name AS name,
-                        nation_1.region_id AS region_id,
-                        nation_1.comment AS COMMENT
-                 FROM nation AS nation_1
-                 WHERE nation_1.region_id = region_1.id) AS anon_3) AS anon_2 ON TRUE
-           WHERE anon_2.value = 5) AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
+           FROM
+             (SELECT nation_1.id AS id,
+                     nation_1.name AS name,
+                     nation_1.region_id AS region_id,
+                     nation_1.comment AS COMMENT
+              FROM nation AS nation_1
+              WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON TRUE
+        WHERE anon_1.value = 5
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_filter_multiple_ok(snapshot):
+    query = q.region.filter(q.name == "AFRICA").filter(q.name != "EUROPE")
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA'
+          AND region_1.name != 'EUROPE'
         """
     )
     assert_result_matches(snapshot, query)
@@ -975,13 +932,9 @@ def test_select_filter_end(snapshot):
     query = q.region.select(n=q.name).filter(q.n == "AFRICA")
     assert run(query) == n(
         """
-        SELECT jsonb_build_object('n', anon_1.name) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           WHERE region_1.name = 'AFRICA') AS anon_1
+        SELECT jsonb_build_object('n', region_1.name) AS value
+        FROM region AS region_1
+        WHERE region_1.name = 'AFRICA'
         """
     )
     assert_result_matches(snapshot, query)
@@ -1133,18 +1086,12 @@ def test_group_nation_by_region_select_aggr_filter_ok(snapshot):
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
            LEFT OUTER JOIN
-             (SELECT anon_4.reg AS reg,
+             (SELECT region_2.name AS reg,
                      count(*) AS value
-              FROM
-                (SELECT region_2.name AS reg,
-                        nation_1.id AS id,
-                        nation_1.name AS name,
-                        nation_1.region_id AS region_id,
-                        nation_1.comment AS COMMENT
-                 FROM nation AS nation_1
-                 JOIN region AS region_2 ON nation_1.region_id = region_2.id
-                 WHERE nation_1.name = 'KENYA') AS anon_4
-              GROUP BY anon_4.reg) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
+              FROM nation AS nation_1
+              JOIN region AS region_2 ON nation_1.region_id = region_2.id
+              WHERE nation_1.name = 'KENYA'
+              GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg) AS anon_1
         """
     )
     assert_result_matches(snapshot, query)
@@ -1424,25 +1371,17 @@ def test_around_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('n', anon_1.name, 'nn', anon_2.value) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
+        SELECT jsonb_build_object('n', region_1.name, 'nn', anon_1.value) AS value
+        FROM region AS region_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
            FROM region AS region_1
            WHERE SUBSTRING(region_1.name
                            FROM 1
-                           FOR 1) = 'A') AS anon_1
-        LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
-           FROM
-             (SELECT region_1.id AS id,
-                     region_1.name AS name,
-                     region_1.comment AS COMMENT
-              FROM region AS region_1
-              WHERE SUBSTRING(region_1.name
-                              FROM 1
-                              FOR 1) = 'A') AS anon_1) AS anon_2 ON TRUE
+                           FOR 1) = 'A') AS anon_1 ON TRUE
+        WHERE SUBSTRING(region_1.name
+                        FROM 1
+                        FOR 1) = 'A'
         """
     )
 
@@ -1459,19 +1398,14 @@ def test_around_through_ok(snapshot):
         LEFT OUTER JOIN LATERAL
           (SELECT count(*) AS value
            FROM
-             (SELECT nation_2.id AS id,
-                     nation_2.name AS name,
-                     nation_2.region_id AS region_id,
-                     nation_2.comment AS COMMENT
-              FROM
-                (SELECT region.id AS id,
-                        region.name AS name,
-                        region.comment AS COMMENT
-                 FROM region
-                 WHERE region.id = nation_1.region_id) AS anon_3
-              JOIN nation AS nation_2 ON anon_3.id = nation_2.region_id
-              JOIN region AS region_1 ON nation_2.region_id = region_1.id
-              WHERE region_1.name = 'EUROPE') AS anon_2) AS anon_1 ON TRUE
+             (SELECT region.id AS id,
+                     region.name AS name,
+                     region.comment AS COMMENT
+              FROM region
+              WHERE region.id = nation_1.region_id) AS anon_2
+           JOIN nation AS nation_2 ON anon_2.id = nation_2.region_id
+           JOIN region AS region_1 ON nation_2.region_id = region_1.id
+           WHERE region_1.name = 'EUROPE') AS anon_1 ON TRUE
         """
     )
 

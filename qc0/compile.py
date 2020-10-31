@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Any
 from functools import singledispatch
 import sqlalchemy as sa
 from sqlalchemy.sql.selectable import Selectable, Join, Alias
@@ -38,6 +38,7 @@ class From(Struct):
     existing: Dict[any, Selectable]
     current: Selectable
     at: Selectable
+    where: Any = None
     group_by_columns: List[str] = None
 
     def __post_init__(self):
@@ -82,6 +83,10 @@ class From(Struct):
         next = self.replace(current=current, at=at, existing=self.existing)
         return next, at
 
+    def add_where(self, where):
+        where = (self.where & where) if self.where is not None else where
+        return self.replace(where=where)
+
     @classmethod
     def make(cls, from_obj=None):
         assert not isinstance(from_obj, Join)
@@ -92,14 +97,30 @@ class From(Struct):
     def to_select(self, value):
         from_obj = self.current
         if from_obj is None:
-            return sa.select([*self.group_by_columns, value.label("value")])
+            sel = sa.select([*self.group_by_columns, value.label("value")])
         elif value is None:
-            return from_obj.select()
+            sel = from_obj.select()
         else:
-            return sa.select(
+            sel = sa.select(
                 [*self.group_by_columns, value.label("value")],
                 from_obj=from_obj,
             )
+        if self.where is not None:
+            sel = sel.where(self.where)
+        return sel
+
+    def to_corelated_select(self, table, fk):
+        sel = (
+            table.select()
+            .correlate(self.at)
+            .where(
+                table.columns[fk.parent.name]
+                == self.at.columns[fk.column.name]
+            )
+        )
+        if self.where is not None:
+            sel = sel.where(self.where)
+        return sel
 
 
 @singledispatch
@@ -147,14 +168,7 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
 def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
-        from_obj = From.make(
-            table.select()
-            .correlate(from_obj.at)
-            .where(
-                table.columns[rel.fk.parent.name]
-                == from_obj.at.columns[rel.fk.column.name]
-            )
-        )
+        from_obj = From.make(from_obj.to_corelated_select(table, rel.fk))
         return None, from_obj
     else:
         value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
@@ -170,14 +184,14 @@ def RelTake_to_sql(rel: RelTake, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
     at = from_obj.at
     take, from_obj = expr_to_sql(rel.take, from_obj)
-    from_obj = From.make(
-        sa.select(
-            [*from_obj.group_by_columns, at],
-            from_obj=from_obj.current,
-        )
-        .limit(take)
-        .alias()
+    sel = sa.select(
+        [*from_obj.group_by_columns, at],
+        from_obj=from_obj.current,
     )
+    if from_obj.where is not None:
+        sel = sel.where(from_obj.where)
+    sel = sel.limit(take)
+    from_obj = From.make(sel.alias())
     return val, from_obj
 
 
@@ -191,14 +205,14 @@ def RelSort_to_sql(rel: RelSort, from_obj):
         if sort.desc:
             col = col.desc()
         order_by.append(col)
-    from_obj = From.make(
-        sa.select(
-            [*from_obj.group_by_columns, at],
-            from_obj=from_obj.current,
-        )
-        .order_by(*order_by)
-        .alias()
+    sel = sa.select(
+        [*from_obj.group_by_columns, at],
+        from_obj=from_obj.current,
     )
+    if from_obj.where is not None:
+        sel = sel.where(from_obj.where)
+    sel = sel.order_by(*order_by).alias()
+    from_obj = From.make(sel)
     return val, from_obj
 
 
@@ -207,11 +221,7 @@ def RelFilter_to_sql(rel: RelFilter, from_obj):
     val, from_obj = rel_to_sql(rel.rel, from_obj)
     at = from_obj.at
     expr, from_obj = expr_to_sql(rel.expr, from_obj)
-    from_obj = From.make(
-        sa.select([*from_obj.group_by_columns, at], from_obj=from_obj.current)
-        .where(expr)
-        .alias()
-    )
+    from_obj = from_obj.add_where(expr).replace(at=at)
     return val, from_obj
 
 
@@ -248,13 +258,12 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         return columns, from_obj.replace(at=at, group_by_columns=columns)
 
     columns, from_obj = build_kernel()
-    sel = (
-        sa.select(
-            [*from_obj.group_by_columns, *columns], from_obj=from_obj.current
-        )
-        .group_by(*from_obj.group_by_columns)
-        .alias()
+    sel = sa.select(
+        [*from_obj.group_by_columns, *columns], from_obj=from_obj.current
     )
+    if from_obj.where is not None:
+        sel = sel.where(from_obj.where)
+    sel = sel.group_by(*from_obj.group_by_columns).alias()
     from_obj = From.make(sel)
 
     if not rel.aggregates:
@@ -270,14 +279,13 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
             cols = columns
         else:
             cols = [inner_from_obj.current.columns[c.name] for c in columns]
-        inner_sel = (
-            sa.select(
-                [*cols, value.label("value")],
-                from_obj=inner_from_obj.current,
-            )
-            .group_by(*cols)
-            .alias()
-        )
+        inner_sel = sa.select(
+            [*cols, value.label("value")],
+            from_obj=inner_from_obj.current,
+        ).group_by(*cols)
+        if inner_from_obj.where is not None:
+            inner_sel = inner_sel.where(inner_from_obj.where)
+        inner_sel = inner_sel.alias()
         from_obj, inner_at = from_obj.join_at(
             inner_sel, *((c.name, c.name) for c in columns), outer=True
         )
