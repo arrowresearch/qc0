@@ -39,6 +39,7 @@ class From(Struct):
     current: Selectable
     at: Selectable
     where: Any = None
+    limit: Any = None
     group_by_columns: List[str] = None
 
     def __post_init__(self):
@@ -51,6 +52,9 @@ class From(Struct):
             from_obj = from_obj.alias()
 
             return self.make(from_obj), from_obj
+
+        if self.limit is not None:
+            self = self.make(self.to_select(None).alias())
 
         # NOTE(andreypopp): this is a hacky way to dedup existing, need to consider
         # another approach based on structural query equality...
@@ -87,6 +91,9 @@ class From(Struct):
         where = (self.where & where) if self.where is not None else where
         return self.replace(where=where)
 
+    def add_limit(self, limit):
+        return self.replace(limit=limit)
+
     @classmethod
     def make(cls, from_obj=None):
         assert not isinstance(from_obj, Join)
@@ -107,19 +114,8 @@ class From(Struct):
             )
         if self.where is not None:
             sel = sel.where(self.where)
-        return sel
-
-    def to_corelated_select(self, table, fk):
-        sel = (
-            table.select()
-            .correlate(self.at)
-            .where(
-                table.columns[fk.parent.name]
-                == self.at.columns[fk.column.name]
-            )
-        )
-        if self.where is not None:
-            sel = sel.where(self.where)
+        if self.limit is not None:
+            sel = sel.limit(self.limit)
         return sel
 
 
@@ -168,7 +164,17 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
 def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
-        from_obj = From.make(from_obj.to_corelated_select(table, rel.fk))
+        sel = (
+            table.select()
+            .correlate(from_obj.at)
+            .where(
+                table.columns[rel.fk.parent.name]
+                == from_obj.at.columns[rel.fk.column.name]
+            )
+        )
+        if from_obj.where is not None:
+            sel = sel.where(from_obj.where)
+        from_obj = From.make(sel.alias())
         return None, from_obj
     else:
         value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
@@ -181,23 +187,25 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
 
 @rel_to_sql.register
 def RelTake_to_sql(rel: RelTake, from_obj):
-    val, from_obj = rel_to_sql(rel.rel, from_obj)
+    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    # If we have already LIMIT set we need to produce wrap this FROM as a
+    # subselect with another LIMIT.
+    if from_obj.limit is not None:
+        from_obj = from_obj.make(from_obj.to_select(value).alias())
     at = from_obj.at
     take, from_obj = expr_to_sql(rel.take, from_obj)
-    sel = sa.select(
-        [*from_obj.group_by_columns, at],
-        from_obj=from_obj.current,
-    )
-    if from_obj.where is not None:
-        sel = sel.where(from_obj.where)
-    sel = sel.limit(take)
-    from_obj = From.make(sel.alias())
-    return val, from_obj
+    from_obj = from_obj.replace(at=at)
+    from_obj = from_obj.add_limit(take)
+    return value, from_obj
 
 
 @rel_to_sql.register
 def RelSort_to_sql(rel: RelSort, from_obj):
-    val, from_obj = rel_to_sql(rel.rel, from_obj)
+    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    # If we have already LIMIT set we need to produce wrap this FROM as a
+    # subselect with another LIMIT.
+    if from_obj.limit is not None:
+        from_obj = from_obj.make(from_obj.to_select(value).alias())
     at = from_obj.at
     order_by = []
     for sort in rel.sort:
@@ -213,16 +221,21 @@ def RelSort_to_sql(rel: RelSort, from_obj):
         sel = sel.where(from_obj.where)
     sel = sel.order_by(*order_by).alias()
     from_obj = From.make(sel)
-    return val, from_obj
+    return value, from_obj
 
 
 @rel_to_sql.register
 def RelFilter_to_sql(rel: RelFilter, from_obj):
-    val, from_obj = rel_to_sql(rel.rel, from_obj)
+    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    # If we have already LIMIT set we need to produce wrap this FROM as a
+    # subselect with WHERE.
+    if from_obj.limit is not None:
+        from_obj = from_obj.make(from_obj.to_select(value).alias())
     at = from_obj.at
     expr, from_obj = expr_to_sql(rel.expr, from_obj)
-    from_obj = from_obj.add_where(expr).replace(at=at)
-    return val, from_obj
+    from_obj = from_obj.replace(at=at)
+    from_obj = from_obj.add_where(expr)
+    return value, from_obj
 
 
 @rel_to_sql.register
@@ -321,8 +334,13 @@ def ExprOp_to_sql(expr: ExprOp, from_obj):
 @expr_to_sql.register
 def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
     expr, inner_from_obj = op_to_sql(op.op, from_obj)
-    value = op.sig.compile([expr])
-    sel = inner_from_obj.to_select(value)
+    if inner_from_obj.limit is not None:
+        expr, inner_from_obj = op_to_sql(op.op, from_obj)
+        inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
+        value = op.sig.compile([inner_from_obj.at.c.value])
+    else:
+        value = op.sig.compile([expr])
+    sel = inner_from_obj.to_select(value).alias()
     if from_obj.at is not None:
         from_obj, at = from_obj.join_lateral(sel)
     else:

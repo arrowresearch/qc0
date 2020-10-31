@@ -98,6 +98,16 @@ snapshots[
 """
 
 snapshots[
+    "test_around_ok 1"
+] = """- n: AFRICA
+  nn: 3
+- n: AMERICA
+  nn: 3
+- n: ASIA
+  nn: 3
+"""
+
+snapshots[
     "test_back_nav_region_nation_name_ok 1"
 ] = """- ALGERIA
 - ARGENTINA
@@ -366,13 +376,13 @@ snapshots[
 """
 
 snapshots[
-    "test_filter_region_name_ok 1"
-] = """- (AFRICA)
+    "test_filter_region_true_ok 1"
+] = """[]
 """
 
 snapshots[
-    "test_filter_region_true_ok 1"
-] = """[]
+    "test_filter_take_ok 1"
+] = """- (AFRICA)
 """
 
 snapshots[
@@ -1391,6 +1401,13 @@ snapshots[
 """
 
 snapshots[
+    "test_sort_take_ok 1"
+] = """- ("MIDDLE EAST")
+- (EUROPE)
+- (ASIA)
+"""
+
+snapshots[
     "test_sub_integer_literals_ok 1"
 ] = """42
 ...
@@ -1421,6 +1438,11 @@ snapshots[
 """
 
 snapshots[
+    "test_take_filter_ok 1"
+] = """- (AFRICA)
+"""
+
+snapshots[
     "test_take_region_nation_ok 1"
 ] = """- (ALGERIA)
 - (ARGENTINA)
@@ -1430,6 +1452,25 @@ snapshots[
     "test_take_region_ok 1"
 ] = """- (AFRICA)
 - (AMERICA)
+"""
+
+snapshots[
+    "test_take_region_select_nation_ok 1"
+] = """- nation:
+  - ALGERIA
+  - ETHIOPIA
+- nation:
+  - ARGENTINA
+  - BRAZIL
+- nation:
+  - INDIA
+  - INDONESIA
+- nation:
+  - FRANCE
+  - GERMANY
+- nation:
+  - EGYPT
+  - IRAN
 """
 
 snapshots[
@@ -1444,6 +1485,18 @@ snapshots[
 - (MOZAMBIQUE)
 - (PERU)
 - ("UNITED STATES")
+"""
+
+snapshots[
+    "test_take_sort_ok 1"
+] = """- (ASIA)
+- (AMERICA)
+- (AFRICA)
+"""
+
+snapshots[
+    "test_take_take_ok 1"
+] = """- (AFRICA)
 """
 
 snapshots[

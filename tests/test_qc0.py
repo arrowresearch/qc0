@@ -462,13 +462,9 @@ def test_take_region_ok(snapshot):
     query = q.region.take(2)
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           LIMIT 2) AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        LIMIT 2
         """
     )
     assert_result_matches(snapshot, query)
@@ -478,15 +474,10 @@ def test_take_region_nation_ok(snapshot):
     query = q.region.nation.take(2)
     assert run(query) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT nation_1.id AS id,
-                  nation_1.name AS name,
-                  nation_1.region_id AS region_id,
-                  nation_1.comment AS COMMENT
-           FROM region AS region_1
-           JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
-           LIMIT 2) AS anon_1
+        SELECT CAST(row(nation_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
+        LIMIT 2
         """
     )
     assert_result_matches(snapshot, query)
@@ -509,13 +500,24 @@ def test_take_region_x_nation_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
-def test_filter_region_name_ok(snapshot):
-    query = q.region.filter(q.name == "AFRICA")
-    assert run(query, print_op=True) == n(
+def test_take_region_select_nation_ok(snapshot):
+    query = q.region.select(nation=q.nation.name.take(2))
+    assert run(query) == n(
         """
-        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        SELECT jsonb_build_object('nation', anon_1.value) AS value
         FROM region AS region_1
-        WHERE region_1.name = 'AFRICA'
+        LEFT OUTER JOIN LATERAL
+          (SELECT jsonb_agg(anon_2.value) AS value
+           FROM
+             (SELECT anon_3.name AS value
+              FROM
+                (SELECT nation_1.id AS id,
+                        nation_1.name AS name,
+                        nation_1.region_id AS region_id,
+                        nation_1.comment AS COMMENT
+                 FROM nation AS nation_1
+                 WHERE nation_1.region_id = region_1.id) AS anon_3
+              LIMIT 2) AS anon_2) AS anon_1 ON TRUE
         """
     )
     assert_result_matches(snapshot, query)
@@ -1316,15 +1318,11 @@ def test_substring_rel_non_expr_ok(snapshot):
     query = q.region.name.take(2).substring(1, 2)
     assert run(query, print_op=True) == n(
         """
-        SELECT SUBSTRING(anon_1.name
+        SELECT SUBSTRING(region_1.name
                          FROM 1
                          FOR 2) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           LIMIT 2) AS anon_1
+        FROM region AS region_1
+        LIMIT 2
         """
     )
     assert_result_matches(snapshot, query)
@@ -1384,6 +1382,7 @@ def test_around_ok(snapshot):
                         FOR 1) = 'A'
         """
     )
+    assert_result_matches(snapshot, query)
 
 
 def test_around_through_ok(snapshot):
@@ -1426,3 +1425,92 @@ def test_nav_around_through_ok(snapshot):
         """
         """
     )
+
+
+def test_filter_take_ok(snapshot):
+    query = q.region.filter(q.name.substring(1, 1) == "A").take(1)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE SUBSTRING(region_1.name
+                        FROM 1
+                        FOR 1) = 'A'
+        LIMIT 1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_take_filter_ok(snapshot):
+    query = q.region.take(1).filter(q.name.substring(1, 1) == "A")
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
+        FROM
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           LIMIT 1) AS anon_1
+        WHERE SUBSTRING(anon_1.name
+                        FROM 1
+                        FOR 1) = 'A'
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_take_take_ok(snapshot):
+    query = q.region.take(3).take(1)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
+        FROM
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           LIMIT 3) AS anon_1
+        LIMIT 1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_take_sort_ok(snapshot):
+    query = q.region.take(3).sort(q.name.desc())
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
+        FROM
+          (SELECT anon_2.id AS id,
+                  anon_2.name AS name,
+                  anon_2.comment AS COMMENT
+           FROM
+             (SELECT region_1.id AS id,
+                     region_1.name AS name,
+                     region_1.comment AS COMMENT
+              FROM region AS region_1
+              LIMIT 3) AS anon_2
+           ORDER BY anon_2.name DESC) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_sort_take_ok(snapshot):
+    query = q.region.sort(q.name.desc()).take(3)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
+        FROM
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           ORDER BY region_1.name DESC) AS anon_1
+        LIMIT 3
+        """
+    )
+    assert_result_matches(snapshot, query)
