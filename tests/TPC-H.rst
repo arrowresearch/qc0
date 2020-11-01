@@ -505,3 +505,221 @@ SQL::
    {'cust_nation': 'GERMANY', 'revenue': 154119.1338, 'supp_nation': 'FRANCE', 'year': 1996},
    {'cust_nation': 'FRANCE', 'revenue': 205237.6695, 'supp_nation': 'GERMANY', 'year': 1995},
    {'cust_nation': 'FRANCE', 'revenue': 407967.2149, 'supp_nation': 'GERMANY', 'year': 1996}]
+
+National Market Share Query (Q8)
+-------------------------------
+
+SQL::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   o_year as year,
+  ...   sum(case when nation = 'CANADA' then volume else 0 end) / sum(volume) as mkt_share
+  ... from (
+  ...   select
+  ...     extract(year from o.orderdate) as o_year,
+  ...     l.extendedprice * (1 - l.discount) as volume,
+  ...     n2.name as nation
+  ...   from
+  ...     part p,
+  ...     partsupp ps,
+  ...     supplier s,
+  ...     lineitem l,
+  ...     "order" o,
+  ...     customer c,
+  ...     nation n1,
+  ...     nation n2,
+  ...     region r
+  ...   where
+  ...     l.partsupp_id = ps.id
+  ...     and p.id = ps.part_id
+  ...     and s.id = ps.supplier_id
+  ...     and l.order_id = o.id
+  ...     and o.customer_id = c.id
+  ...     and c.nation_id = n1.id
+  ...     and n1.region_id = r.id
+  ...     and r.name = 'AMERICA'
+  ...     and s.nation_id = n2.id
+  ...     and o.orderdate between date '1995-01-01' and date '1996-12-31'
+  ...     and p.type = 'ECONOMY ANODIZED STEEL'
+  ... ) as all_nations
+  ... group by
+  ...   o_year
+  ... order by
+  ...   o_year
+  ... """)
+
+  >>> q_volume = q.extendedprice * (1 - q.discount)
+
+  >>> got = (
+  ... q.lineitem
+  ... .filter((q.partsupp.part.type == 'ECONOMY ANODIZED STEEL') &
+  ...         (q.order.customer.nation.region.name == 'AMERICA') &
+  ...         (q.order.orderdate >= date(1995, 1, 1)) &
+  ...         (q.order.orderdate <= date(1996, 12, 31)))
+  ... .group(year=q.order.orderdate.year)
+  ... .select(
+  ...   year=q.year,
+  ...   mkt_share=
+  ...    (q._.filter(q.partsupp.supplier.nation.name == 'CANADA') >> q_volume).sum() /
+  ...    (q._ >> q_volume).sum()
+  ... )
+  ... .run())
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'mkt_share': 0.13794041018126516, 'year': 1995},
+   {'mkt_share': 0.26156725927459884, 'year': 1996}]
+
+Product Type Profit Measure Query (Q9)
+--------------------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   nation,
+  ...   o_year as year,
+  ...   sum(amount) as sum_profit
+  ... from (
+  ...   select
+  ...     n.name as nation,
+  ...     extract(year from o.orderdate) as o_year,
+  ...     l.extendedprice * (1 - l.discount) - ps.supplycost * l.quantity as amount
+  ...   from
+  ...     part p,
+  ...     supplier s,
+  ...     lineitem l,
+  ...     partsupp ps,
+  ...     "order" o,
+  ...     nation n
+  ...   where
+  ...     l.partsupp_id = ps.id
+  ...     and ps.supplier_id = s.id
+  ...     and ps.part_id = p.id
+  ...     and o.id = l.order_id
+  ...     and s.nation_id = n.id
+  ...     and p.name ilike '%%green%%'
+  ... ) as profit
+  ... group by
+  ...   nation,
+  ...   o_year
+  ... order by
+  ...   nation,
+  ...   o_year desc
+  ... """)
+
+::
+
+  >>> q_amount = (
+  ...   q.extendedprice * (1 - q.discount) -
+  ...   q.partsupp.supplycost * q.quantity
+  ... )
+
+::
+
+  >>> got = (
+  ...   q.lineitem
+  ...   .filter(q.partsupp.part.name.ilike('%green%'))
+  ...   .group(
+  ...     nation=q.partsupp.supplier.nation.name,
+  ...     year=q.order.orderdate.year,
+  ...   )
+  ...   .sort(q.nation, q.year.desc())
+  ...   .select(
+  ...     nation=q.nation,
+  ...     year=q.year,
+  ...     sum_profit=q._ >> q_amount >> q.sum()
+  ...   )
+  ... ).run()
+
+  >>> got == expected
+  True
+
+  >>> got[:10] # doctest: +NORMALIZE_WHITESPACE
+  [{'nation': 'ALGERIA', 'sum_profit': 197990.0662, 'year': 1998},
+   {'nation': 'ALGERIA', 'sum_profit': 209363.9688, 'year': 1997},
+   {'nation': 'ALGERIA', 'sum_profit': 508610.1009, 'year': 1996},
+   {'nation': 'ALGERIA', 'sum_profit': 321224.3841, 'year': 1995},
+   {'nation': 'ALGERIA', 'sum_profit': 323614.0984, 'year': 1994},
+   {'nation': 'ALGERIA', 'sum_profit': 429217.3353, 'year': 1993},
+   {'nation': 'ALGERIA', 'sum_profit': 313931.4222, 'year': 1992},
+   {'nation': 'ARGENTINA', 'sum_profit': 207703.7187, 'year': 1998},
+   {'nation': 'ARGENTINA', 'sum_profit': 404879.3621, 'year': 1997},
+   {'nation': 'ARGENTINA', 'sum_profit': 277287.3144, 'year': 1996}]
+
+Returned Item Reporting Query (Q10)
+-----------------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   c.id,
+  ...   c.name,
+  ...   sum(l.extendedprice * (1 - l.discount)) as revenue,
+  ...   c.acctbal,
+  ...   n.name as nation,
+  ...   c.address,
+  ...   c.phone,
+  ...   c.comment
+  ... from
+  ...   customer c,
+  ...   "order" o,
+  ...   lineitem l,
+  ...   nation n
+  ... where
+  ...   c.id = o.customer_id
+  ...   and l.order_id = o.id
+  ...   and o.orderdate >= date '1993-10-01'
+  ...   and o.orderdate < date '1994-01-01'
+  ...   and l.returnflag = 'R'
+  ...   and c.nation_id = n.id
+  ... group by
+  ...   c.id,
+  ...   c.name,
+  ...   c.acctbal,
+  ...   c.phone,
+  ...   n.name,
+  ...   c.address,
+  ...   c.comment
+  ... order by
+  ...   revenue desc
+  ... limit 20
+  ... """)
+
+  >>> q_returned = (
+  ...   q.order
+  ...   .filter((q.orderdate >= date(1993, 10, 1)) &
+  ...           (q.orderdate < date(1994, 1, 1)))
+  ...   .lineitem
+  ...   .filter(q.returnflag == "R")
+  ... )
+
+  >>> got = (
+  ...   q.customer
+  ...   .select(
+  ...     id=q.id,
+  ...     name=q.name,
+  ...     revenue=q_returned >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
+  ...     acctbal=q.acctbal,
+  ...     nation=q.nation.name,
+  ...     address=q.address,
+  ...     phone=q.phone,
+  ...     comment=q.comment,
+  ...   )
+  ...   .sort(q.revenue.desc())
+  ...   .take(20)
+  ... ).run()
+
+  >>> got == expected
+  True
+
+  >>> got[:5] # doctest: +NORMALIZE_WHITESPACE
+  [{..., 'name': 'Customer#000000544', 'nation': 'ETHIOPIA', ..., 'revenue': 391580.0723},
+   {..., 'name': 'Customer#000001105', 'nation': 'RUSSIA', ..., 'revenue': 375872.2968},
+   {..., 'name': 'Customer#000000961', 'nation': 'JAPAN', ..., 'revenue': 372764.6176},
+   {..., 'name': 'Customer#000000266', 'nation': 'ALGERIA', ..., 'revenue': 347106.7501},
+   {..., 'name': 'Customer#000000683', 'nation': 'FRANCE', ..., 'revenue': 328973.7152}]
