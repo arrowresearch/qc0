@@ -273,13 +273,20 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         return columns, from_obj.replace(at=at, group_by_columns=columns)
 
     columns, from_obj = build_kernel()
-    sel = sa.select(
-        [*from_obj.group_by_columns, *columns], from_obj=from_obj.current
-    )
-    if from_obj.where is not None:
-        sel = sel.where(from_obj.where)
-    sel = sel.group_by(*from_obj.group_by_columns).alias()
-    from_obj = From.make(sel)
+    if columns:
+        sel = sa.select(
+            [*from_obj.group_by_columns, *columns], from_obj=from_obj.current
+        )
+        if from_obj.where is not None:
+            sel = sel.where(from_obj.where)
+        sel = sel.group_by(*from_obj.group_by_columns).alias()
+        from_obj = From.make(sel)
+    else:
+        sel = sa.select(
+            [*from_obj.group_by_columns],
+            from_obj=sa.select([sa.literal(1)]).alias(),
+        )
+        from_obj = From.make(sel)
 
     if not rel.aggregates:
         return None, from_obj

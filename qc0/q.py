@@ -117,6 +117,9 @@ class Q:
     def __mul__(self, o: Q):
         return self._make(syntax.BinOp(op="__mul__", a=self.syn, b=to_syn(o)))
 
+    def __rmul__(self, o: Q):
+        return self._make(syntax.BinOp(op="__mul__", a=to_syn(o), b=self.syn))
+
     def __truediv__(self, o: Q):
         return self._make(
             syntax.BinOp(op="__truediv__", a=self.syn, b=to_syn(o))

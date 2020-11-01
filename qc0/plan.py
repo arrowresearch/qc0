@@ -400,7 +400,8 @@ def Apply_to_op(syn: Apply, parent: Op):
             fields=fields,
             aggregates=scope.aggregates,
         )
-        return parent.grow_rel(rel=rel, syn=syn, scope=scope)
+        card = Cardinality.SEQ if fields else Cardinality.ONE
+        return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)
     else:
 
         sig = AggrSig.get(syn.name)
