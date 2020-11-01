@@ -133,7 +133,7 @@ def test_select_tables_ok(snapshot):
         """
         SELECT jsonb_build_object('region', anon_1.value) AS value
         FROM
-          (SELECT jsonb_agg(CAST(row(region_1.name) AS VARCHAR)) AS value
+          (SELECT coalesce(jsonb_agg(CAST(row(region_1.name) AS VARCHAR)), CAST('[]' AS JSONB)) AS value
            FROM region AS region_1) AS anon_1
         """
     )
@@ -186,7 +186,7 @@ def test_select_select_nav_one_ok(snapshot):
         """
         SELECT jsonb_build_object('region_names', anon_1.value) AS value
         FROM
-          (SELECT jsonb_agg(region_1.name) AS value
+          (SELECT coalesce(jsonb_agg(region_1.name), CAST('[]' AS JSONB)) AS value
            FROM region AS region_1) AS anon_1
         """
     )
@@ -199,7 +199,7 @@ def test_select_select_nav_nav_ok(snapshot):
         """
         SELECT jsonb_build_object('region_names', anon_1.value) AS value
         FROM
-          (SELECT jsonb_agg(region_1.name) AS value
+          (SELECT coalesce(jsonb_agg(region_1.name), CAST('[]' AS JSONB)) AS value
            FROM nation AS nation_1
            JOIN region AS region_1 ON nation_1.region_id = region_1.id) AS anon_1
         """
@@ -213,10 +213,10 @@ def test_select_select_multiple_ok(snapshot):
         """
         SELECT jsonb_build_object('nation_names', anon_1.value, 'region_names', anon_2.value) AS value
         FROM
-          (SELECT jsonb_agg(nation_1.name) AS value
+          (SELECT coalesce(jsonb_agg(nation_1.name), CAST('[]' AS JSONB)) AS value
            FROM nation AS nation_1) AS anon_1
         JOIN
-          (SELECT jsonb_agg(region_1.name) AS value
+          (SELECT coalesce(jsonb_agg(region_1.name), CAST('[]' AS JSONB)) AS value
            FROM region AS region_1) AS anon_2 ON TRUE
         """
     )
@@ -253,7 +253,7 @@ def test_select_nav_select_select_ok(snapshot):
         SELECT jsonb_build_object('nn', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.name) AS value
+          (SELECT coalesce(jsonb_agg(anon_2.name), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -273,7 +273,7 @@ def test_select_nav_select_select_select_ok(snapshot):
         SELECT jsonb_build_object('nnn', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.name) AS value
+          (SELECT coalesce(jsonb_agg(anon_2.name), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -345,7 +345,7 @@ def test_select_back_nav_ok(snapshot):
         SELECT jsonb_build_object('nation_names', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.name) AS value
+          (SELECT coalesce(jsonb_agg(anon_2.name), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -371,7 +371,7 @@ def test_select_back_nav_nested_ok(snapshot):
         SELECT jsonb_build_object('region_name', region_1.name, 'nations', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(jsonb_build_object('nation_name', anon_2.name, 'customer_names', anon_3.value)) AS value
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('nation_name', anon_2.name, 'customer_names', anon_3.value)), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -380,7 +380,7 @@ def test_select_back_nav_nested_ok(snapshot):
               FROM nation AS nation_1
               WHERE nation_1.region_id = region_1.id) AS anon_2
            LEFT OUTER JOIN LATERAL
-             (SELECT jsonb_agg(anon_4.name) AS value
+             (SELECT coalesce(jsonb_agg(anon_4.name), CAST('[]' AS JSONB)) AS value
               FROM
                 (SELECT customer_1.id AS id,
                         customer_1.name AS name,
@@ -404,7 +404,7 @@ def test_count_region_ok(snapshot):
         """
         SELECT anon_1.value AS value
         FROM
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM region AS region_1) AS anon_1
         """
     )
@@ -417,7 +417,7 @@ def test_count_region_via_opend_ok(snapshot):
         """
         SELECT anon_1.value AS value
         FROM
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM region AS region_1) AS anon_1
         """
     )
@@ -430,7 +430,7 @@ def test_count_nation_region_ok(snapshot):
         """
         SELECT anon_1.value AS value
         FROM
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM nation AS nation_1
            JOIN region AS region_1 ON nation_1.region_id = region_1.id) AS anon_1
         """
@@ -445,7 +445,7 @@ def test_count_region_select_nation_count_ok(snapshot):
         SELECT jsonb_build_object('nation_count', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -485,7 +485,7 @@ def test_take_region_nation_ok(snapshot):
 
 def test_take_region_x_nation_ok(snapshot):
     query = q.region.take(2).nation
-    assert run(query) == n(
+    assert run(query, print_op=True) == n(
         """
         SELECT CAST(row(nation_1.name) AS VARCHAR) AS value
         FROM
@@ -507,7 +507,7 @@ def test_take_region_select_nation_ok(snapshot):
         SELECT jsonb_build_object('nation', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.value) AS value
+          (SELECT coalesce(jsonb_agg(anon_2.value), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT anon_3.name AS value
               FROM
@@ -630,7 +630,7 @@ def test_filter_region_by_name_then_select_ok(snapshot):
         SELECT jsonb_build_object('name', region_1.name, 'nation_names', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.name) AS value
+          (SELECT coalesce(jsonb_agg(anon_2.name), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -692,7 +692,7 @@ def test_filter_customer_by_region_name_then_count_ok(snapshot):
         """
         SELECT anon_1.value AS value
         FROM
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM customer AS customer_1
            JOIN nation AS nation_1 ON customer_1.nation_id = nation_1.id
            JOIN region AS region_1 ON nation_1.region_id = region_1.id
@@ -724,7 +724,7 @@ def test_filter_region_by_nation_count_ok(snapshot):
         SELECT CAST(row(region_1.name) AS VARCHAR) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -790,7 +790,7 @@ def test_add_lateral_columns_ok(snapshot):
         SELECT jsonb_build_object('names', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT jsonb_agg(anon_2.name || '!') AS value
+          (SELECT coalesce(jsonb_agg(anon_2.name || '!'), CAST('[]' AS JSONB)) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -900,6 +900,33 @@ def test_date_column_nav_ok(snapshot):
     # assert_result_matches(snapshot, query)
 
 
+def test_date_column_select_ok(snapshot):
+    query = q.order.select(date=q.orderdate.year)
+    assert run(query) == n(
+        """
+        SELECT jsonb_build_object('date', EXTRACT(YEAR
+                                                  FROM order_1.orderdate)) AS value
+        FROM "order" AS order_1
+        """
+    )
+    # Too big to test
+    # assert_result_matches(snapshot, query)
+
+
+def test_date_column_nav_select_ok(snapshot):
+    query = q.lineitem.select(date=q.order.orderdate.year)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('date', EXTRACT(YEAR
+                                                  FROM order_1.orderdate)) AS value
+        FROM lineitem AS lineitem_1
+        JOIN "order" AS order_1 ON lineitem_1.order_id = order_1.id
+        """
+    )
+    # Too big to test
+    # assert_result_matches(snapshot, query)
+
+
 def test_json_literal_ok(snapshot):
     query = q.val({"hello": ["world"]})
     assert run(query) == n(
@@ -966,7 +993,7 @@ def test_group_region_by_nation_select_ok(snapshot):
           (SELECT anon_2.value AS reg
            FROM region AS region_1
            LEFT OUTER JOIN LATERAL
-             (SELECT count(anon_3.name) AS value
+             (SELECT coalesce(count(anon_3.name), 0) AS value
               FROM
                 (SELECT nation_1.id AS id,
                         nation_1.name AS name,
@@ -1159,7 +1186,7 @@ def test_group_select_nav_ok(snapshot):
         """
         SELECT anon_1.value AS value
         FROM
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM nation AS nation_1) AS anon_1
         """
     )
@@ -1372,7 +1399,7 @@ def test_around_ok(snapshot):
         SELECT jsonb_build_object('n', region_1.name, 'nn', anon_1.value) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM region AS region_1
            WHERE SUBSTRING(region_1.name
                            FROM 1
@@ -1395,7 +1422,7 @@ def test_around_through_ok(snapshot):
         SELECT jsonb_build_object('n', nation_1.name, 'nn', anon_1.value) AS value
         FROM nation AS nation_1
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM
              (SELECT region.id AS id,
                      region.name AS name,
@@ -1559,7 +1586,7 @@ def test_sort_by_aggr_ok(snapshot):
         SELECT jsonb_build_object('num_customers', anon_1.value, 'name', region_1.name) AS value
         FROM region AS region_1
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM
              (SELECT nation_1.id AS id,
                      nation_1.name AS name,
@@ -1569,7 +1596,7 @@ def test_sort_by_aggr_ok(snapshot):
               WHERE nation_1.region_id = region_1.id) AS anon_3
            JOIN customer AS customer_1 ON anon_3.id = customer_1.nation_id) AS anon_2 ON TRUE
         LEFT OUTER JOIN LATERAL
-          (SELECT count(*) AS value
+          (SELECT coalesce(count(*), 0) AS value
            FROM
              (SELECT nation_2.id AS id,
                      nation_2.name AS name,
@@ -1592,6 +1619,34 @@ def test_sort_then_nav_ok(snapshot):
         FROM nation AS nation_1
         JOIN region AS region_1 ON nation_1.region_id = region_1.id
         ORDER BY region_1.name
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_select_link_then_take(snapshot):
+    query = q.nation.select(region=q.region.name, c=q.customer.count()).take(
+        10
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('region', region_1.name, 'c', anon_1.value) AS value
+        FROM nation AS nation_1
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        LEFT OUTER JOIN LATERAL
+          (SELECT coalesce(count(*), 0) AS value
+           FROM
+             (SELECT customer_1.id AS id,
+                     customer_1.name AS name,
+                     customer_1.address AS address,
+                     customer_1.nation_id AS nation_id,
+                     customer_1.phone AS phone,
+                     customer_1.acctbal AS acctbal,
+                     customer_1.mktsegment AS mktsegment,
+                     customer_1.comment AS COMMENT
+              FROM customer AS customer_1
+              WHERE customer_1.nation_id = nation_1.id) AS anon_2) AS anon_1 ON TRUE
+        LIMIT 10
         """
     )
     assert_result_matches(snapshot, query)

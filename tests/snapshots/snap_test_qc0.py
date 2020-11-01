@@ -828,6 +828,28 @@ snapshots['test_select_back_nav_ok 1'] = '''- nation_names:
 snapshots['test_select_filter_end 1'] = '''- n: AFRICA
 '''
 
+snapshots['test_select_link_then_take 1'] = '''- c: 51
+  region: AFRICA
+- c: 50
+  region: AMERICA
+- c: 63
+  region: AMERICA
+- c: 48
+  region: AMERICA
+- c: 56
+  region: MIDDLE EAST
+- c: 44
+  region: AFRICA
+- c: 32
+  region: EUROPE
+- c: 41
+  region: EUROPE
+- c: 52
+  region: ASIA
+- c: 56
+  region: ASIA
+'''
+
 snapshots['test_select_nav_select_nav_column_ok 1'] = '''- AFRICA
 - AMERICA
 - ASIA

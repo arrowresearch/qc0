@@ -47,14 +47,14 @@ class From(Struct):
         if self.group_by_columns is None:
             object.__setattr__(self, "group_by_columns", ())
 
-    def join_at(self, from_obj, *by, outer=False):
+    def join_at(self, from_obj, *by, outer=False, navigation=False):
         if self.current is None:
             assert not by
             from_obj = from_obj.alias()
 
             return self.make(from_obj), from_obj
 
-        if self.limit is not None:
+        if self.limit is not None and navigation:
             self = self.make(self.to_select(None).alias())
 
         # NOTE(andreypopp): this is a hacky way to dedup existing, need to consider
@@ -162,6 +162,7 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
         from_obj, _ = from_obj.join_at(
             rel.fk.column.table,
             (rel.fk.parent.name, rel.fk.column.name),
+            navigation=not isinstance(rel.rel, RelParent),
         )
         return val, from_obj
 
@@ -187,6 +188,7 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
         from_obj, _ = from_obj.join_at(
             rel.fk.parent.table,
             (rel.fk.column.name, rel.fk.parent.name),
+            navigation=True,
         )
         return value, from_obj
 
@@ -337,9 +339,15 @@ def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
     if inner_from_obj.limit is not None or inner_from_obj.order is not None:
         expr, inner_from_obj = op_to_sql(op.op, from_obj)
         inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
-        value = op.sig.compile([inner_from_obj.at.c.value])
+        value = sa.func.coalesce(
+            op.sig.compile([inner_from_obj.at.c.value]),
+            op.sig.unit,
+        )
     else:
-        value = op.sig.compile([expr])
+        value = sa.func.coalesce(
+            op.sig.compile([expr]),
+            op.sig.unit,
+        )
     sel = inner_from_obj.to_select(value).alias()
     if from_obj.at is not None:
         from_obj, at = from_obj.join_lateral(sel)
