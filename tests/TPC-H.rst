@@ -6,30 +6,32 @@ Pricing Summary Report Query (Q1)
 
 SQL::
 
-  select
-    l_returnflag,
-    l_linestatus,
-    sum(l_quantity) as sum_qty,
-    sum(l_extendedprice) as sum_base_price,
-    sum(l_extendedprice*(1-l_discount)) as sum_disc_price,
-    sum(l_extendedprice*(1-l_discount)*(1+l_tax)) as sum_charge,
-    avg(l_quantity) as avg_qty,
-    avg(l_extendedprice) as avg_price,
-    avg(l_discount) as avg_disc,
-    count(*) as count_order
-  from lineitem
-  where
-    l_shipdate <= date '1998-12-01' - interval '[DELTA]' day
-  group by
-    l_returnflag,
-    l_linestatus
-  order by
-    l_returnflag,
-    l_linestatus;
+  >>> expected = execute_sql("""
+  ... select
+  ...   l.returnflag,
+  ...   l.linestatus,
+  ...   sum(l.quantity) as sum_qty,
+  ...   sum(l.extendedprice) as sum_base_price,
+  ...   sum(l.extendedprice*(1-l.discount)) as sum_disc_price,
+  ...   sum(l.extendedprice*(1-l.discount)*(1+l.tax)) as sum_charge,
+  ...   avg(l.quantity) as avg_qty,
+  ...   avg(l.extendedprice) as avg_price,
+  ...   avg(l.discount) as avg_disc,
+  ...   count(*) as count_order
+  ... from lineitem l
+  ... where
+  ...   l.shipdate <= date '1998-12-01'
+  ... group by
+  ...   l.returnflag,
+  ...   l.linestatus
+  ... order by
+  ...   l.returnflag,
+  ...   l.linestatus;
+  ... """)
 
 qc0::
 
-  >>> (q.lineitem
+  >>> got = (q.lineitem
   ...  .filter(q.shipdate < date(1998, 12, 1))
   ...  .group(returnflag=q.returnflag, linestatus=q.linestatus)
   ...  .select(
@@ -45,98 +47,106 @@ qc0::
   ...    count_order=q._.count(),
   ...  )
   ...  .sort(q.returnflag, q.linestatus)
-  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'avg_qty': 25.40316106372303,
-    'sum_qty': 303771,
-    'avg_disc': 0.05011958521491888,
+  ...  .run())
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'avg_disc': 0.05011958521491888,
     'avg_price': 33577.13907007861,
+    'avg_qty': 25.40316106372303,
+    'count_order': 11958,
     'linestatus': 'F',
     'returnflag': 'A',
+    'sum_base_price': 401515429.0,
     'sum_charge': 396851570.111263,
-    'count_order': 11958,
-    'sum_base_price': 401515429.0, 
-    'sum_disc_price': 381465877.1614},
-   {'avg_qty': 25.53472222222222,
-    'sum_qty': 7354,
-    'avg_disc': 0.04809027777777778,
+    'sum_disc_price': 381465877.1614,
+    'sum_qty': 303771},
+   {'avg_disc': 0.04809027777777778,
     'avg_price': 33754.776875,
+    'avg_qty': 25.53472222222222,
+    'count_order': 288,
     'linestatus': 'F',
     'returnflag': 'N',
-    'sum_charge': 9616674.437564,
-    'count_order': 288,
     'sum_base_price': 9721375.74,
-    'sum_disc_price': 9247800.679},
-   {'avg_qty': 25.458529473026452,
-    'sum_qty': 611132,
-    'avg_disc': 0.049931680899812536,
+    'sum_charge': 9616674.437564,
+    'sum_disc_price': 9247800.679,
+    'sum_qty': 7354},
+   {'avg_disc': 0.049931680899812536,
     'avg_price': 33790.326112059985,
+    'avg_qty': 25.458529473026452,
+    'count_order': 24005,
     'linestatus': 'O',
     'returnflag': 'N',
-    'sum_charge': 801746504.456339,
-    'count_order': 24005,
     'sum_base_price': 811136778.32,
-    'sum_disc_price': 770866712.5807},
-   {'avg_qty': 25.630945415029675,
-    'sum_qty': 306623,
-    'avg_disc': 0.04973083674663546,
+    'sum_charge': 801746504.456339,
+    'sum_disc_price': 770866712.5807,
+    'sum_qty': 611132},
+   {'avg_disc': 0.04973083674663546,
     'avg_price': 33940.52955028003,
+    'avg_qty': 25.630945415029675,
+    'count_order': 11963,
     'linestatus': 'F',
     'returnflag': 'R',
-    'sum_charge': 401431970.03021,
-    'count_order': 11963,
     'sum_base_price': 406030555.01,
-    'sum_disc_price': 385792652.5409}]
+    'sum_charge': 401431970.03021,
+    'sum_disc_price': 385792652.5409,
+    'sum_qty': 306623}]
+
 
 Minimum Cost Supplier Query (Q2)
 --------------------------------
 
 SQL::
 
-  select
-    s_acctbal,
-    s_name,
-    n_name,
-    p_partkey,
-    p_mfgr,
-    s_address,
-    s_phone,
-    s_comment
-  from
-    part,
-    supplier,
-    partsupp,
-    nation,
-    region
-  where
-    p_partkey = ps_partkey
-    and s_suppkey = ps_suppkey
-    and p_size = [SIZE]
-    and p_type like '%[TYPE]'
-    and s_nationkey = n_nationkey
-    and n_regionkey = r_regionkey
-    and r_name = '[REGION]'
-    and ps_supplycost = (
-      select 
-        min(ps_supplycost)
-      from
-        partsupp, supplier,
-        nation, region
-      where
-        p_partkey = ps_partkey
-        and s_suppkey = ps_suppkey
-        and s_nationkey = n_nationkey
-        and n_regionkey = r_regionkey
-        and r_name = '[REGION]'
-    )
-  order by
-    s_acctbal desc,
-    n_name,
-    s_name,
-    p_partkey;
+  >>> expected = execute_sql("""
+  ... select
+  ...   s.acctbal as s_acctbal,
+  ...   s.name as s_name,
+  ...   n.name as n_name,
+  ...   p.name as p_name,
+  ...   p.mfgr as p_mfgr,
+  ...   s.address as s_address,
+  ...   s.phone as s_phone,
+  ...   s.comment as s_comment
+  ... from
+  ...   part p,
+  ...   supplier s,
+  ...   partsupp ps,
+  ...   nation n,
+  ...   region r
+  ... where
+  ...   p.id = ps.part_id
+  ...   and s.id = ps.supplier_id
+  ...   and p.size = 45
+  ...   and p.type like '%%NICKEL'
+  ...   and s.nation_id = n.id
+  ...   and n.region_id = r.id
+  ...   and r.name = 'EUROPE'
+  ...   and ps.supplycost = (
+  ...     select 
+  ...       min(ps.supplycost)
+  ...     from
+  ...       partsupp ps, supplier s,
+  ...       nation n, region r
+  ...     where
+  ...       p.id = ps.part_id
+  ...       and s.id = ps.supplier_id
+  ...       and s.nation_id = n.id
+  ...       and n.region_id = r.id
+  ...       and r.name = 'EUROPE'
+  ...   )
+  ... order by
+  ...   s.acctbal desc,
+  ...   n.name,
+  ...   s.name,
+  ...   p.name
+  ... """)
 
 ::
 
-  >>> (q.partsupp
+  >>> got = (q.partsupp
   ...  .filter(
   ...     (q.supplier.nation.region.name == 'EUROPE') &
   ...     q.part.type.like('%NICKEL') &
@@ -160,126 +170,140 @@ SQL::
   ...     q.p_name
   ...  )
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
-  [{'n_name': 'RUSSIA',
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+  [{'n_name': 'ROMANIA',
     'p_mfgr': 'Manufacturer#1',
-    'p_name': 'spring wheat purple chiffon puff',
-    's_name': 'Supplier#000000025',
-    's_phone': '32-431-945-3541',
-    's_acctbal': 9198.31,
-    's_address': 'RCQKONXMFnrodzz6w7fObFVV6CUm2q',
-    's_comment': '...'},
-   {'n_name': 'ROMANIA',
-    'p_mfgr': 'Manufacturer#4',
-    'p_name': 'thistle sky antique khaki chartreuse',
-    's_name': 'Supplier#000000062',
-    's_phone': '29-603-653-2494',
+    'p_name': 'olive purple turquoise cornflower honeydew',
     's_acctbal': 9202.57,
-    's_address':
-    'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb', 's_comment': '...'},
+    's_address': 'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb',
+    's_comment': '...',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494'},
    {'n_name': 'ROMANIA',
     'p_mfgr': 'Manufacturer#1',
     'p_name': 'pink powder mint moccasin navajo',
-    's_name': 'Supplier#000000062',
-    's_phone': '29-603-653-2494',
     's_acctbal': 9202.57,
     's_address': 'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb',
-    's_comment': '...'},
+    's_comment': '...',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494'},
    {'n_name': 'ROMANIA',
-    'p_mfgr': 'Manufacturer#1',
-    'p_name': 'olive purple turquoise cornflower honeydew',
-    's_name': 'Supplier#000000062',
-    's_phone': '29-603-653-2494',
+    'p_mfgr': 'Manufacturer#4',
+    'p_name': 'thistle sky antique khaki chartreuse',
     's_acctbal': 9202.57,
     's_address': 'bSmlFYUKBeRsqJxwC9 zS6xpFdEf5jNTb',
-    's_comment': '...'}]
+    's_comment': '...',
+    's_name': 'Supplier#000000062',
+    's_phone': '29-603-653-2494'},
+   {'n_name': 'RUSSIA',
+    'p_mfgr': 'Manufacturer#1',
+    'p_name': 'spring wheat purple chiffon puff',
+    's_acctbal': 9198.31,
+    's_address': 'RCQKONXMFnrodzz6w7fObFVV6CUm2q',
+    's_comment': '...',
+    's_name': 'Supplier#000000025',
+    's_phone': '32-431-945-3541'}]
 
 Shipping Priority Query (Q3)
 ----------------------------
 
 SQL::
 
-  select
-    l_orderkey,
-    sum(l_extendedprice*(1-l_discount)) as revenue,
-    o_orderdate,
-    o_shippriority
-  from
-    customer,
-    orders,
-    lineitem
-  where
-    c_mktsegment = '[SEGMENT]'
-    and c_custkey = o_custkey
-    and l_orderkey = o_orderkey
-    and o_orderdate < date '[DATE]'
-    and l_shipdate > date '[DATE]'
-  group by
-    l_orderkey,
-    o_orderdate,
-    o_shippriority
-  order by
-    revenue desc,
-    o_orderdate;
+  >>> expected = execute_sql("""
+  ... select
+  ...   l.order_id,
+  ...   sum(l.extendedprice * (1 - l.discount)) as revenue,
+  ...   o.orderdate,
+  ...   o.shippriority
+  ... from
+  ...   customer c,
+  ...   "order" o,
+  ...   lineitem l
+  ... where
+  ...   c.mktsegment = 'BUILDING'
+  ...   and c.id = o.customer_id
+  ...   and l.order_id = o.id
+  ...   and o.orderdate < date '1995-03-15'
+  ...   and l.shipdate > date '1995-03-15'
+  ... group by
+  ...   l.order_id,
+  ...   o.orderdate,
+  ...   o.shippriority
+  ... order by
+  ...   revenue desc,
+  ...   o.orderdate
+  ... """)
+
 
 ::
 
-  >>> (q.lineitem
+  >>> got = (q.lineitem
   ...  .filter(
   ...    (q.order.customer.mktsegment == 'BUILDING') &
   ...    (q.shipdate > date(1995, 3, 15)) &
   ...    (q.order.orderdate < date(1995, 3, 15))
   ...  )
   ...  .group(
-  ...    orderkey=q.order.key,
+  ...    order_id=q.order.id,
   ...    orderdate=q.order.orderdate,
   ...    shippriority=q.order.shippriority,
   ...  )
   ...  .select(
-  ...    orderkey=q.orderkey,
+  ...    order_id=q.order_id,
   ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
   ...    orderdate=q.orderdate,
   ...    shippriority=q.shippriority,
   ...  )
   ...  .sort(q.revenue.desc(), q.orderdate)
-  ...  .take(3)
-  ...  .run()) # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
-  [{'revenue': 245018.0968, 'orderkey': 24960, 'orderdate': '1995-01-28', 'shippriority': 0},
-   {'revenue': 234486.9328, 'orderkey': 23270, 'orderdate': '1995-03-14', 'shippriority': 0},
-   {'revenue': 231804.6747, 'orderkey': 39878, 'orderdate': '1995-03-06', 'shippriority': 0}]
+  ...  .run())
+
+  >>> got == expected
+  True
+
+  >>> got[:3] # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+  [{'order_id': 6240, 'orderdate': '1995-01-28', 'revenue': 245018.0968, 'shippriority': 0},
+   {'order_id': 5822, 'orderdate': '1995-03-14', 'revenue': 234486.9328, 'shippriority': 0},
+   {'order_id': 9974, 'orderdate': '1995-03-06', 'revenue': 231804.6747, 'shippriority': 0}]
 
 Order Priority Checking Query (Q4)
 ----------------------------------
 
 SQL::
 
-  select
-    o_orderpriority,
-    count(*) as order_count
-  from
-    orders
-  where
-    o_orderdate >= date '[DATE]'
-    and o_orderdate < date '[DATE]' + interval '3' month
-    and exists (
-      select
-        *
-      from
-        lineitem
-      where
-        l_orderkey = o_orderkey
-        and l_commitdate < l_receiptdate
-    )
-  group by
-    o_orderpriority
-  order by
-    o_orderpriority;
+  >>> expected = execute_sql("""
+  ... select
+  ...   o.orderpriority,
+  ...   count(*) as order_count
+  ... from
+  ...   "order" o
+  ... where
+  ...   o.orderdate >= date '1993-07-01'
+  ...   and o.orderdate < date '1993-10-01'
+  ...   and exists (
+  ...     select
+  ...       *
+  ...     from
+  ...       lineitem l
+  ...     where
+  ...       l.order_id = o.id
+  ...       and l.commitdate < l.receiptdate
+  ...   )
+  ... group by
+  ...   o.orderpriority
+  ... order by
+  ...   o.orderpriority;
+  ... """)
 
 ::
 
-  >>> (q.order
+  >>> got = (q.order
   ...  .filter(
   ...    (q.orderdate >= date(1993, 7, 1)) &
-  ...    (q.orderdate <= date(1993, 10, 1)) &
+  ...    (q.orderdate < date(1993, 10, 1)) &
   ...    q.lineitem.filter(q.commitdate < q.receiptdate).exists()
   ...  )
   ...  .group(orderpriority=q.orderpriority)
@@ -289,47 +313,57 @@ SQL::
   ...  )
   ...  .sort(q.orderpriority)
   ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'order_count': 79, 'orderpriority': '1-URGENT'},
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'order_count': 78, 'orderpriority': '1-URGENT'},
    {'order_count': 80, 'orderpriority': '2-HIGH'},
-   {'order_count': 91, 'orderpriority': '3-MEDIUM'},
-   {'order_count': 86, 'orderpriority': '4-NOT SPECIFIED'},
-   {'order_count': 107, 'orderpriority': '5-LOW'}]
+   {'order_count': 89, 'orderpriority': '3-MEDIUM'},
+   {'order_count': 85, 'orderpriority': '4-NOT SPECIFIED'},
+   {'order_count': 105, 'orderpriority': '5-LOW'}]
 
 Local Supplier Volume Query (Q5)
 --------------------------------
 
 SQL::
 
-  select
-    n_name,
-    sum(l_extendedprice * (1 - l_discount)) as revenue
-  from
-    customer,
-    orders,
-    lineitem,
-    supplier,
-    nation,
-    region
-  where
-    c_custkey = o_custkey
-    and l_orderkey = o_orderkey
-    and l_suppkey = s_suppkey
-    and c_nationkey = s_nationkey
-    and s_nationkey = n_nationkey
-    and n_regionkey = r_regionkey
-    and r_name = '[REGION]'
-    and o_orderdate >= date '[DATE]'
-    and o_orderdate < date '[DATE]' + interval '1' year
-  group by
-    n_name
-  order by
-    revenue desc;
+  >>> expected = execute_sql("""
+  ... select
+  ...   n.name as nation,
+  ...   sum(l.extendedprice * (1 - l.discount)) as revenue
+  ... from
+  ...   customer c,
+  ...   "order" o,
+  ...   lineitem l,
+  ...   supplier s,
+  ...   partsupp ps,
+  ...   nation n,
+  ...   region r
+  ... where
+  ...   c.id = o.customer_id
+  ...   and l.order_id = o.id
+  ...   and l.partsupp_id = ps.id
+  ...   and ps.supplier_id = s.id
+  ...   and c.nation_id = s.nation_id
+  ...   and s.nation_id = n.id
+  ...   and n.region_id = r.id
+  ...   and r.name = 'ASIA'
+  ...   and o.orderdate >= date '1994-01-01'
+  ...   and o.orderdate < date '1995-01-01'
+  ... group by
+  ...   n.name
+  ... order by
+  ...   revenue desc
+  ... """)
 
 ::
 
-  >>> (q.lineitem
+  >>> got = (q.lineitem
   ...  .filter(
   ...    (q.partsupp.supplier.nation.region.name == 'ASIA') &
+  ...    (q.partsupp.supplier.nation.name == q.order.customer.nation.name) &
   ...    (q.order.orderdate >= date(1994, 1, 1)) &
   ...    (q.order.orderdate < date(1995, 1, 1))
   ...  )
@@ -339,87 +373,106 @@ SQL::
   ...    revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
   ...  )
   ...  .sort(q.revenue.desc())
-  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'nation': 'CHINA', 'revenue': 15111496.4525},
-   {'nation': 'INDIA', 'revenue': 15042185.186},
-   {'nation': 'INDONESIA', 'revenue': 12900327.9504},
-   {'nation': 'VIETNAM', 'revenue': 12673214.0653},
-   {'nation': 'JAPAN', 'revenue': 6007285.9402}]
+  ...  .run()) 
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'nation': 'VIETNAM', 'revenue': 807082.6286},
+   {'nation': 'INDIA', 'revenue': 697063.011},
+   {'nation': 'INDONESIA', 'revenue': 463882.6916},
+   {'nation': 'CHINA', 'revenue': 440134.0125},
+   {'nation': 'JAPAN', 'revenue': 237479.4272}]
 
 Forecasting Revenue Change Query (Q6)
 -------------------------------------
 
 SQL::
 
-  select
-    sum(l_extendedprice*l_discount) as revenue
-  from
-    lineitem
-  where
-    l_shipdate >= date '[DATE]'
-    and l_shipdate < date '[DATE]' + interval '1' year
-    and l_discount between [DISCOUNT] - 0.01 and [DISCOUNT] + 0.01
-    and l_quantity < [QUANTITY];
+  >>> expected = execute_sql("""
+  ... select
+  ...   sum(l.extendedprice * l.discount) as revenue
+  ... from
+  ...   lineitem l
+  ... where
+  ...   l.shipdate >= date '1994-01-01'
+  ...   and l.shipdate < date '1995-01-01'
+  ...   and l.discount between 0.05 and 0.07
+  ...   and l.quantity < 24;
+  ... """)
 
 ::
 
-  >>> ((q.lineitem
+  >>> got = ((
+  ...  q.lineitem
   ...  .filter(
   ...    (q.shipdate >= date(1994, 1, 1)) &
   ...    (q.shipdate < date(1995, 1, 1)) &
-  ...    (q.discount >= (0.06 - 0.01)) &
-  ...    (q.discount <= (0.06 + 0.01)) &
+  ...    (q.discount >= 0.05) &
+  ...    (q.discount <= 0.07) &
   ...    (q.quantity < 24)
-  ...  ) >> (q.extendedprice * (1 - q.discount)).sum())
-  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  Decimal('9548183.0531')
+  ...  )
+  ...  >> (q.extendedprice * q.discount).sum())
+  ...  .run())
+
+  >>> got == expected[0]['revenue']
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  905922.8234
 
 Volume Shipping Query (Q7)
 --------------------------
 
 SQL::
 
-  select
-    supp_nation,
-    cust_nation,
-    l_year, sum(volume) as revenue
-  from (
-    select
-      n1.n_name as supp_nation,
-      n2.n_name as cust_nation,
-      extract(year from l_shipdate) as l_year,
-      l_extendedprice * (1 - l_discount) as volume
-    from
-      supplier,
-      lineitem,
-      orders,
-      customer,
-      nation n1,
-      nation n2
-    where
-      s_suppkey = l_suppkey
-      and o_orderkey = l_orderkey
-      and c_custkey = o_custkey
-      and s_nationkey = n1.n_nationkey
-      and c_nationkey = n2.n_nationkey
-      and (
-        (n1.n_name = '[NATION1]' and n2.n_name = '[NATION2]')
-        or (n1.n_name = '[NATION2]' and n2.n_name = '[NATION1]')
-      )
-      and l_shipdate between date '1995-01-01' and date '1996-12-31'
-  ) as shipping
-  group by
-    supp_nation,
-    cust_nation,
-    l_year
-  order by
-    supp_nation,
-    cust_nation,
-    l_year;
+  >>> expected = execute_sql("""
+  ... select
+  ...   supp_nation,
+  ...   cust_nation,
+  ...   l_year as year,
+  ...   sum(volume) as revenue
+  ... from (
+  ...   select
+  ...     n1.name as supp_nation,
+  ...     n2.name as cust_nation,
+  ...     extract(year from l.shipdate) as l_year,
+  ...     l.extendedprice * (1 - l.discount) as volume
+  ...   from
+  ...     supplier s,
+  ...     partsupp ps,
+  ...     lineitem l,
+  ...     "order" o,
+  ...     customer c,
+  ...     nation n1,
+  ...     nation n2
+  ...   where
+  ...     l.partsupp_id = ps.id
+  ...     and s.id = ps.supplier_id
+  ...     and o.id = l.order_id
+  ...     and c.id = o.customer_id
+  ...     and s.nation_id = n1.id
+  ...     and c.nation_id = n2.id
+  ...     and (
+  ...       (n1.name = 'FRANCE' and n2.name = 'GERMANY')
+  ...       or (n1.name = 'GERMANY' and n2.name = 'FRANCE')
+  ...     )
+  ...     and l.shipdate between date '1995-01-01' and date '1996-12-31'
+  ... ) as shipping
+  ... group by
+  ...   supp_nation,
+  ...   cust_nation,
+  ...   l_year
+  ... order by
+  ...   supp_nation,
+  ...   cust_nation,
+  ...   l_year;
+  ... """)
 
 ::
 
-  >>> (q.lineitem
+  >>> got = (q.lineitem
   ...  .filter(
   ...    (
   ...      ((q.order.customer.nation.name == 'GERMANY') &
@@ -442,8 +495,13 @@ SQL::
   ...     revenue=q._ >> (q.extendedprice * (1 - q.discount)) >> q.sum()
   ...  )
   ...  .sort(q.supp_nation, q.cust_nation, q.year)
-  ...  .run()) # doctest: +NORMALIZE_WHITESPACE
-  [{'year': 1995, 'revenue': 263047.8824, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'},
-   {'year': 1996, 'revenue': 154119.1338, 'cust_nation': 'GERMANY', 'supp_nation': 'FRANCE'},
-   {'year': 1995, 'revenue': 205237.6695, 'cust_nation': 'FRANCE', 'supp_nation': 'GERMANY'},
-   {'year': 1996, 'revenue': 407967.2149, 'cust_nation': 'FRANCE', 'supp_nation': 'GERMANY'}]
+  ...  .run())
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'cust_nation': 'GERMANY', 'revenue': 263047.8824, 'supp_nation': 'FRANCE', 'year': 1995},
+   {'cust_nation': 'GERMANY', 'revenue': 154119.1338, 'supp_nation': 'FRANCE', 'year': 1996},
+   {'cust_nation': 'FRANCE', 'revenue': 205237.6695, 'supp_nation': 'GERMANY', 'year': 1995},
+   {'cust_nation': 'FRANCE', 'revenue': 407967.2149, 'supp_nation': 'GERMANY', 'year': 1996}]

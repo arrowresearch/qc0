@@ -40,6 +40,7 @@ class From(Struct):
     at: Selectable
     where: Any = None
     limit: Any = None
+    order: Any = None
     group_by_columns: List[str] = None
 
     def __post_init__(self):
@@ -94,6 +95,9 @@ class From(Struct):
     def add_limit(self, limit):
         return self.replace(limit=limit)
 
+    def add_order(self, order):
+        return self.replace(order=order)
+
     @classmethod
     def make(cls, from_obj=None):
         assert not isinstance(from_obj, Join)
@@ -114,6 +118,8 @@ class From(Struct):
             )
         if self.where is not None:
             sel = sel.where(self.where)
+        if self.order is not None:
+            sel = sel.order_by(*self.order)
         if self.limit is not None:
             sel = sel.limit(self.limit)
         return sel
@@ -204,7 +210,7 @@ def RelSort_to_sql(rel: RelSort, from_obj):
     value, from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
-    if from_obj.limit is not None:
+    if from_obj.limit is not None or from_obj.order is not None:
         from_obj = from_obj.make(from_obj.to_select(value).alias())
     at = from_obj.at
     order_by = []
@@ -213,14 +219,8 @@ def RelSort_to_sql(rel: RelSort, from_obj):
         if sort.desc:
             col = col.desc()
         order_by.append(col)
-    sel = sa.select(
-        [*from_obj.group_by_columns, at],
-        from_obj=from_obj.current,
-    )
-    if from_obj.where is not None:
-        sel = sel.where(from_obj.where)
-    sel = sel.order_by(*order_by).alias()
-    from_obj = From.make(sel)
+    from_obj = from_obj.replace(at=at)
+    from_obj = from_obj.add_order(order_by)
     return value, from_obj
 
 
@@ -334,7 +334,7 @@ def ExprOp_to_sql(expr: ExprOp, from_obj):
 @expr_to_sql.register
 def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
     expr, inner_from_obj = op_to_sql(op.op, from_obj)
-    if inner_from_obj.limit is not None:
+    if inner_from_obj.limit is not None or inner_from_obj.order is not None:
         expr, inner_from_obj = op_to_sql(op.op, from_obj)
         inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
         value = op.sig.compile([inner_from_obj.at.c.value])

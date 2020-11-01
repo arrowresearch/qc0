@@ -7,18 +7,14 @@ from snapshottest import Snapshot
 
 snapshots = Snapshot()
 
-snapshots[
-    "test_add_columns_of_relok 1"
-] = """- AFRICA!
+snapshots['test_add_columns_of_relok 1'] = '''- AFRICA!
 - AMERICA!
 - ASIA!
 - EUROPE!
 - MIDDLE EAST!
-"""
+'''
 
-snapshots[
-    "test_add_columns_ok 1"
-] = """- full_name: ALGERIA IN AFRICA
+snapshots['test_add_columns_ok 1'] = '''- full_name: ALGERIA IN AFRICA
 - full_name: ARGENTINA IN AMERICA
 - full_name: BRAZIL IN AMERICA
 - full_name: CANADA IN AMERICA
@@ -43,17 +39,13 @@ snapshots[
 - full_name: RUSSIA IN EUROPE
 - full_name: UNITED KINGDOM IN EUROPE
 - full_name: UNITED STATES IN AMERICA
-"""
+'''
 
-snapshots[
-    "test_add_integer_literals_ok 1"
-] = """42
+snapshots['test_add_integer_literals_ok 1'] = '''42
 ...
-"""
+'''
 
-snapshots[
-    "test_add_lateral_columns_ok 1"
-] = """- names:
+snapshots['test_add_lateral_columns_ok 1'] = '''- names:
   - ALGERIA!
   - ETHIOPIA!
   - KENYA!
@@ -83,33 +75,25 @@ snapshots[
   - IRAQ!
   - JORDAN!
   - SAUDI ARABIA!
-"""
+'''
 
-snapshots[
-    "test_add_string_literals_ok 1"
-] = """Hello, World!
+snapshots['test_add_string_literals_ok 1'] = '''Hello, World!
 ...
-"""
+'''
 
-snapshots[
-    "test_and_literals_ok 1"
-] = """false
+snapshots['test_and_literals_ok 1'] = '''false
 ...
-"""
+'''
 
-snapshots[
-    "test_around_ok 1"
-] = """- n: AFRICA
+snapshots['test_around_ok 1'] = '''- n: AFRICA
   nn: 3
 - n: AMERICA
   nn: 3
 - n: ASIA
   nn: 3
-"""
+'''
 
-snapshots[
-    "test_back_nav_region_nation_name_ok 1"
-] = """- ALGERIA
+snapshots['test_back_nav_region_nation_name_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -134,11 +118,9 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_back_nav_region_nation_ok 1"
-] = """- (ALGERIA)
+snapshots['test_back_nav_region_nation_ok 1'] = '''- (ALGERIA)
 - (ARGENTINA)
 - (BRAZIL)
 - (CANADA)
@@ -163,11 +145,9 @@ snapshots[
 - (RUSSIA)
 - ("UNITED KINGDOM")
 - ("UNITED STATES")
-"""
+'''
 
-snapshots[
-    "test_compose_nation_name_ok 1"
-] = """- ALGERIA
+snapshots['test_compose_nation_name_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -192,11 +172,9 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_compose_nation_region_name_ok 1"
-] = """- AFRICA
+snapshots['test_compose_nation_region_name_ok 1'] = '''- AFRICA
 - AMERICA
 - AMERICA
 - AMERICA
@@ -221,11 +199,9 @@ snapshots[
 - EUROPE
 - EUROPE
 - AMERICA
-"""
+'''
 
-snapshots[
-    "test_compose_nation_select_ok 1"
-] = """- nation_name: ALGERIA
+snapshots['test_compose_nation_select_ok 1'] = '''- nation_name: ALGERIA
   region_name: AFRICA
 - nation_name: ARGENTINA
   region_name: AMERICA
@@ -275,119 +251,90 @@ snapshots[
   region_name: EUROPE
 - nation_name: UNITED STATES
   region_name: AMERICA
-"""
+'''
 
-snapshots[
-    "test_count_nation_region_ok 1"
-] = """25
+snapshots['test_count_nation_region_ok 1'] = '''25
 ...
-"""
+'''
 
-snapshots[
-    "test_count_region_ok 1"
-] = """5
+snapshots['test_count_region_ok 1'] = '''5
 ...
-"""
+'''
 
-snapshots[
-    "test_count_region_select_nation_count_ok 1"
-] = """- nation_count: 5
+snapshots['test_count_region_select_nation_count_ok 1'] = '''- nation_count: 5
 - nation_count: 5
 - nation_count: 5
 - nation_count: 5
 - nation_count: 5
-"""
+'''
 
-snapshots[
-    "test_count_region_via_opend_ok 1"
-] = """5
+snapshots['test_count_region_via_opend_ok 1'] = '''5
 ...
-"""
+'''
 
-snapshots[
-    "test_date_literal_nav_ok 1"
-] = """2020.0
+snapshots['test_date_literal_nav_ok 1'] = '''2020.0
 ...
-"""
+'''
 
-snapshots[
-    "test_date_literal_ok 1"
-] = """2020-01-02
+snapshots['test_date_literal_ok 1'] = '''2020-01-02
 ...
-"""
+'''
 
-snapshots[
-    "test_filter_customer_by_region_name_then_count_ok 1"
-] = """243
+snapshots['test_filter_customer_by_region_name_then_count_ok 1'] = '''243
 ...
-"""
+'''
 
-snapshots[
-    "test_filter_multiple_ok 1"
-] = """- (AFRICA)
-"""
+snapshots['test_filter_multiple_ok 1'] = '''- (AFRICA)
+'''
 
-snapshots[
-    "test_filter_nation_by_region_name_ok 1"
-] = """- (ALGERIA)
+snapshots['test_filter_nation_by_region_name_ok 1'] = '''- (ALGERIA)
 - (ETHIOPIA)
 - (KENYA)
 - (MOROCCO)
 - (MOZAMBIQUE)
-"""
+'''
 
-snapshots[
-    "test_filter_nation_by_region_name_then_nav_column_ok 1"
-] = """- ALGERIA
+snapshots['test_filter_nation_by_region_name_then_nav_column_ok 1'] = '''- ALGERIA
 - ETHIOPIA
 - KENYA
 - MOROCCO
 - MOZAMBIQUE
-"""
+'''
 
-snapshots[
-    "test_filter_region_by_name_ok 1"
-] = """- (AFRICA)
-"""
+snapshots['test_filter_region_by_name_ok 1'] = '''- (AFRICA)
+'''
 
-snapshots[
-    "test_filter_region_by_name_then_nav_ok 1"
-] = """- AFRICA
-"""
+snapshots['test_filter_region_by_name_then_nav_ok 1'] = '''- AFRICA
+'''
 
-snapshots[
-    "test_filter_region_by_name_then_select_ok 1"
-] = """- name: AFRICA
+snapshots['test_filter_region_by_name_then_select_ok 1'] = '''- name: AFRICA
   nation_names:
   - ALGERIA
   - ETHIOPIA
   - KENYA
   - MOROCCO
   - MOZAMBIQUE
-"""
+'''
 
-snapshots[
-    "test_filter_region_by_nation_count_ok 1"
-] = """- (AFRICA)
+snapshots['test_filter_region_by_nation_count_ok 1'] = '''- (AFRICA)
 - (AMERICA)
 - (ASIA)
 - (EUROPE)
 - ("MIDDLE EAST")
-"""
+'''
 
-snapshots[
-    "test_filter_region_true_ok 1"
-] = """[]
-"""
+snapshots['test_filter_region_true_ok 1'] = '''[]
+'''
 
-snapshots[
-    "test_filter_take_ok 1"
-] = """- (AFRICA)
-"""
+snapshots['test_filter_sort_ok 1'] = '''- (ASIA)
+- (AMERICA)
+- (AFRICA)
+'''
 
-snapshots[
-    "test_group_binop_aggr_ok 1"
-] = """- names:
+snapshots['test_filter_take_ok 1'] = '''- (AFRICA)
+'''
+
+snapshots['test_group_binop_aggr_ok 1'] = '''- names:
   - ASIA!
 - names:
   - AFRICA!
@@ -397,20 +344,16 @@ snapshots[
   - AMERICA!
 - names:
   - EUROPE!
-"""
+'''
 
-snapshots[
-    "test_group_by_link_ok 1"
-] = """- n: (ASIA)
+snapshots['test_group_by_link_ok 1'] = '''- n: (ASIA)
 - n: ("MIDDLE EAST")
 - n: (AMERICA)
 - n: (EUROPE)
 - n: (AFRICA)
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_aggr_array_ok 1"
-] = """- all:
+snapshots['test_group_nation_by_region_select_aggr_array_ok 1'] = '''- all:
   - INDIA
   - INDONESIA
   - JAPAN
@@ -445,11 +388,9 @@ snapshots[
   - RUSSIA
   - UNITED KINGDOM
   reg: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_aggr_col_and_link_ok 1"
-] = """- customer_count: 253
+snapshots['test_group_nation_by_region_select_aggr_col_and_link_ok 1'] = '''- customer_count: 253
   nation_count: 5
   ref: ASIA
 - customer_count: 243
@@ -464,11 +405,9 @@ snapshots[
 - customer_count: 220
   nation_count: 5
   ref: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_aggr_filter_ok 1"
-] = """- count: 0
+snapshots['test_group_nation_by_region_select_aggr_filter_ok 1'] = '''- count: 0
   reg: ASIA
 - count: 1
   reg: AFRICA
@@ -478,11 +417,9 @@ snapshots[
   reg: AMERICA
 - count: 0
   reg: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_aggr_link_ok 1"
-] = """- customer_count: 253
+snapshots['test_group_nation_by_region_select_aggr_link_ok 1'] = '''- customer_count: 253
   ref: ASIA
 - customer_count: 243
   ref: AFRICA
@@ -492,11 +429,9 @@ snapshots[
   ref: AMERICA
 - customer_count: 220
   ref: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_aggr_ok 1"
-] = """- count: 5
+snapshots['test_group_nation_by_region_select_aggr_ok 1'] = '''- count: 5
   ref: ASIA
 - count: 5
   ref: AFRICA
@@ -506,34 +441,26 @@ snapshots[
   ref: AMERICA
 - count: 5
   ref: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_nation_by_region_select_ok 1"
-] = """- reg: ASIA
+snapshots['test_group_nation_by_region_select_ok 1'] = '''- reg: ASIA
 - reg: AFRICA
 - reg: MIDDLE EAST
 - reg: AMERICA
 - reg: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_ok 1"
-] = """- reg: ASIA
+snapshots['test_group_ok 1'] = '''- reg: ASIA
 - reg: AFRICA
 - reg: MIDDLE EAST
 - reg: AMERICA
 - reg: EUROPE
-"""
+'''
 
-snapshots[
-    "test_group_region_by_nation_select_ok 1"
-] = """- field: 5
-"""
+snapshots['test_group_region_by_nation_select_ok 1'] = '''- field: 5
+'''
 
-snapshots[
-    "test_group_select_nav_link_name_ok 1"
-] = """- AFRICA
+snapshots['test_group_select_nav_link_name_ok 1'] = '''- AFRICA
 - AMERICA
 - AMERICA
 - AMERICA
@@ -558,11 +485,9 @@ snapshots[
 - EUROPE
 - EUROPE
 - AMERICA
-"""
+'''
 
-snapshots[
-    "test_group_select_nav_name_ok 1"
-] = """- ALGERIA
+snapshots['test_group_select_nav_name_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -587,90 +512,64 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_group_select_nav_ok 1"
-] = """25
+snapshots['test_group_select_nav_ok 1'] = '''25
 ...
-"""
+'''
 
-snapshots[
-    "test_group_then_nav_to_field_ok 1"
-] = """- ASIA
+snapshots['test_group_then_nav_to_field_ok 1'] = '''- ASIA
 - AFRICA
 - MIDDLE EAST
 - AMERICA
 - EUROPE
-"""
+'''
 
-snapshots[
-    "test_json_literal_nav_ok 1"
-] = """- world
-"""
+snapshots['test_json_literal_nav_ok 1'] = '''- world
+'''
 
-snapshots[
-    "test_json_literal_nested_nav_ok 1"
-] = """'YES'
-"""
+snapshots['test_json_literal_nested_nav_ok 1'] = ''''YES'
+'''
 
-snapshots[
-    "test_json_literal_ok 1"
-] = """hello:
+snapshots['test_json_literal_ok 1'] = '''hello:
 - world
-"""
+'''
 
-snapshots[
-    "test_literal_boolean_ok 1"
-] = """true
+snapshots['test_literal_boolean_ok 1'] = '''true
 ...
-"""
+'''
 
-snapshots[
-    "test_literal_composition_with_another_literal_ok 1"
-] = """false
+snapshots['test_literal_composition_with_another_literal_ok 1'] = '''false
 ...
-"""
+'''
 
-snapshots[
-    "test_literal_composition_with_query_via_dot_ok 1"
-] = """- true
+snapshots['test_literal_composition_with_query_via_dot_ok 1'] = '''- true
 - true
 - true
 - true
 - true
-"""
+'''
 
-snapshots[
-    "test_literal_composition_with_query_via_op_ok 1"
-] = """- true
+snapshots['test_literal_composition_with_query_via_op_ok 1'] = '''- true
 - true
 - true
 - true
 - true
-"""
+'''
 
-snapshots[
-    "test_literal_integer_ok 1"
-] = """42
+snapshots['test_literal_integer_ok 1'] = '''42
 ...
-"""
+'''
 
-snapshots[
-    "test_literal_string_ok 1"
-] = """Hello
+snapshots['test_literal_string_ok 1'] = '''Hello
 ...
-"""
+'''
 
-snapshots[
-    "test_mul_integer_literals_ok 1"
-] = """44
+snapshots['test_mul_integer_literals_ok 1'] = '''44
 ...
-"""
+'''
 
-snapshots[
-    "test_nav_nation_name_ok 1"
-] = """- ALGERIA
+snapshots['test_nav_nation_name_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -695,11 +594,9 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_nav_nation_ok 1"
-] = """- (ALGERIA)
+snapshots['test_nav_nation_ok 1'] = '''- (ALGERIA)
 - (ARGENTINA)
 - (BRAZIL)
 - (CANADA)
@@ -724,11 +621,9 @@ snapshots[
 - (RUSSIA)
 - ("UNITED KINGDOM")
 - ("UNITED STATES")
-"""
+'''
 
-snapshots[
-    "test_nav_nation_region_name_ok 1"
-] = """- AFRICA
+snapshots['test_nav_nation_region_name_ok 1'] = '''- AFRICA
 - AMERICA
 - AMERICA
 - AMERICA
@@ -753,11 +648,9 @@ snapshots[
 - EUROPE
 - EUROPE
 - AMERICA
-"""
+'''
 
-snapshots[
-    "test_nested_group 1"
-] = """- names:
+snapshots['test_nested_group 1'] = '''- names:
   - BRAZIL
   nested:
   - names2:
@@ -894,17 +787,13 @@ snapshots[
     - FRANCE
     r2: FR
   r1: F
-"""
+'''
 
-snapshots[
-    "test_or_literals_ok 1"
-] = """true
+snapshots['test_or_literals_ok 1'] = '''true
 ...
-"""
+'''
 
-snapshots[
-    "test_select_back_nav_ok 1"
-] = """- nation_names:
+snapshots['test_select_back_nav_ok 1'] = '''- nation_names:
   - ALGERIA
   - ETHIOPIA
   - KENYA
@@ -934,25 +823,19 @@ snapshots[
   - IRAQ
   - JORDAN
   - SAUDI ARABIA
-"""
+'''
 
-snapshots[
-    "test_select_filter_end 1"
-] = """- n: AFRICA
-"""
+snapshots['test_select_filter_end 1'] = '''- n: AFRICA
+'''
 
-snapshots[
-    "test_select_nav_select_nav_column_ok 1"
-] = """- AFRICA
+snapshots['test_select_nav_select_nav_column_ok 1'] = '''- AFRICA
 - AMERICA
 - ASIA
 - EUROPE
 - MIDDLE EAST
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_nav_multi_ok 1"
-] = """- name: ALGERIA
+snapshots['test_select_nav_select_nav_multi_ok 1'] = '''- name: ALGERIA
   region_comment: 'lar deposits. blithely final packages cajole. regular waters are
     final requests. regular accounts are according to '
   region_name: AFRICA
@@ -1037,11 +920,9 @@ snapshots[
 - name: UNITED STATES
   region_comment: hs use ironic, even requests. s
   region_name: AMERICA
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_nav_only_ok 1"
-] = """- region_name: AFRICA
+snapshots['test_select_nav_select_nav_only_ok 1'] = '''- region_name: AFRICA
 - region_name: AMERICA
 - region_name: AMERICA
 - region_name: AMERICA
@@ -1066,11 +947,9 @@ snapshots[
 - region_name: EUROPE
 - region_name: EUROPE
 - region_name: AMERICA
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_nav_select_ok 1"
-] = """- region:
+snapshots['test_select_nav_select_nav_select_ok 1'] = '''- region:
     name: AFRICA
 - region:
     name: AMERICA
@@ -1120,11 +999,9 @@ snapshots[
     name: EUROPE
 - region:
     name: AMERICA
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_nav_table_ok 1"
-] = """- ALGERIA
+snapshots['test_select_nav_select_nav_table_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -1149,11 +1026,9 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_ok 1"
-] = """- comment: ' haggle. carefully final deposits detect slyly agai'
+snapshots['test_select_nav_select_ok 1'] = '''- comment: ' haggle. carefully final deposits detect slyly agai'
   name: ALGERIA
 - comment: al foxes promise slyly according to the regular accounts. bold requests
     alon
@@ -1215,11 +1090,9 @@ snapshots[
 - comment: y final packages. slow foxes cajole quickly. quickly silent platelets breach
     ironic accounts. unusual pinto be
   name: UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_select_ok 1"
-] = """- nn:
+snapshots['test_select_nav_select_select_ok 1'] = '''- nn:
   - ALGERIA
   - ETHIOPIA
   - KENYA
@@ -1249,11 +1122,9 @@ snapshots[
   - IRAQ
   - JORDAN
   - SAUDI ARABIA
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_select_select_nav_ok 1"
-] = """- ALGERIA
+snapshots['test_select_nav_select_select_select_nav_ok 1'] = '''- ALGERIA
 - ARGENTINA
 - BRAZIL
 - CANADA
@@ -1278,11 +1149,9 @@ snapshots[
 - RUSSIA
 - UNITED KINGDOM
 - UNITED STATES
-"""
+'''
 
-snapshots[
-    "test_select_nav_select_select_select_ok 1"
-] = """- nnn:
+snapshots['test_select_nav_select_select_select_ok 1'] = '''- nnn:
   - ALGERIA
   - ETHIOPIA
   - KENYA
@@ -1312,11 +1181,9 @@ snapshots[
   - IRAQ
   - JORDAN
   - SAUDI ARABIA
-"""
+'''
 
-snapshots[
-    "test_select_select_multiple_ok 1"
-] = """nation_names:
+snapshots['test_select_select_multiple_ok 1'] = '''nation_names:
 - ALGERIA
 - ARGENTINA
 - BRAZIL
@@ -1348,11 +1215,9 @@ region_names:
 - ASIA
 - EUROPE
 - MIDDLE EAST
-"""
+'''
 
-snapshots[
-    "test_select_select_nav_nav_ok 1"
-] = """region_names:
+snapshots['test_select_select_nav_nav_ok 1'] = '''region_names:
 - AFRICA
 - AMERICA
 - AMERICA
@@ -1378,85 +1243,139 @@ snapshots[
 - EUROPE
 - EUROPE
 - AMERICA
-"""
+'''
 
-snapshots[
-    "test_select_select_nav_one_ok 1"
-] = """region_names:
+snapshots['test_select_select_nav_one_ok 1'] = '''region_names:
 - AFRICA
 - AMERICA
 - ASIA
 - EUROPE
 - MIDDLE EAST
-"""
+'''
 
-snapshots[
-    "test_select_tables_ok 1"
-] = """region:
+snapshots['test_select_tables_ok 1'] = '''region:
 - (AFRICA)
 - (AMERICA)
 - (ASIA)
 - (EUROPE)
 - ("MIDDLE EAST")
-"""
+'''
 
-snapshots[
-    "test_sort_take_ok 1"
-] = """- ("MIDDLE EAST")
+snapshots['test_sort_by_aggr_ok 1'] = '''- name: EUROPE
+  num_customers: 220
+- name: AMERICA
+  num_customers: 232
+- name: AFRICA
+  num_customers: 243
+- name: MIDDLE EAST
+  num_customers: 252
+- name: ASIA
+  num_customers: 253
+'''
+
+snapshots['test_sort_filter_ok 1'] = '''- (ASIA)
+- (AMERICA)
+- (AFRICA)
+'''
+
+snapshots['test_sort_ok 1'] = '''- ASIA
+- AFRICA
+- EUROPE
+- AMERICA
+- MIDDLE EAST
+'''
+
+snapshots['test_sort_take_ok 1'] = '''- ("MIDDLE EAST")
 - (EUROPE)
 - (ASIA)
-"""
+'''
 
-snapshots[
-    "test_sub_integer_literals_ok 1"
-] = """42
+snapshots['test_sort_then_nav_ok 1'] = '''- name: ETHIOPIA
+  region: AFRICA
+- name: MOZAMBIQUE
+  region: AFRICA
+- name: MOROCCO
+  region: AFRICA
+- name: KENYA
+  region: AFRICA
+- name: ALGERIA
+  region: AFRICA
+- name: UNITED STATES
+  region: AMERICA
+- name: ARGENTINA
+  region: AMERICA
+- name: BRAZIL
+  region: AMERICA
+- name: CANADA
+  region: AMERICA
+- name: PERU
+  region: AMERICA
+- name: VIETNAM
+  region: ASIA
+- name: INDONESIA
+  region: ASIA
+- name: JAPAN
+  region: ASIA
+- name: CHINA
+  region: ASIA
+- name: INDIA
+  region: ASIA
+- name: ROMANIA
+  region: EUROPE
+- name: RUSSIA
+  region: EUROPE
+- name: UNITED KINGDOM
+  region: EUROPE
+- name: GERMANY
+  region: EUROPE
+- name: FRANCE
+  region: EUROPE
+- name: EGYPT
+  region: MIDDLE EAST
+- name: IRAQ
+  region: MIDDLE EAST
+- name: JORDAN
+  region: MIDDLE EAST
+- name: IRAN
+  region: MIDDLE EAST
+- name: SAUDI ARABIA
+  region: MIDDLE EAST
+'''
+
+snapshots['test_sub_integer_literals_ok 1'] = '''42
 ...
-"""
+'''
 
-snapshots[
-    "test_substring_expr_ok 1"
-] = """- silly_abbr: AF
+snapshots['test_substring_expr_ok 1'] = '''- silly_abbr: AF
 - silly_abbr: AM
 - silly_abbr: AS
 - silly_abbr: EU
 - silly_abbr: MI
-"""
+'''
 
-snapshots[
-    "test_substring_rel_non_expr_ok 1"
-] = """- AF
+snapshots['test_substring_rel_non_expr_ok 1'] = '''- AF
 - AM
-"""
+'''
 
-snapshots[
-    "test_substring_rel_ok 1"
-] = """- AF
+snapshots['test_substring_rel_ok 1'] = '''- AF
 - AM
 - AS
 - EU
 - MI
-"""
+'''
 
-snapshots[
-    "test_take_filter_ok 1"
-] = """- (AFRICA)
-"""
+snapshots['test_take_filter_ok 1'] = '''- (AFRICA)
+'''
 
-snapshots[
-    "test_take_region_nation_ok 1"
-] = """- (ALGERIA)
+snapshots['test_take_region_nation_ok 1'] = '''- (ALGERIA)
 - (ARGENTINA)
-"""
+'''
 
-snapshots[
-    "test_take_region_ok 1"
-] = """- (AFRICA)
+snapshots['test_take_region_ok 1'] = '''- (AFRICA)
 - (AMERICA)
-"""
+'''
 
-snapshots[
-    "test_take_region_select_nation_ok 1"
-] = """- nation:
+snapshots['test_take_region_select_nation_ok 1'] = '''- nation:
   - ALGERIA
   - ETHIOPIA
 - nation:
@@ -1471,11 +1390,9 @@ snapshots[
 - nation:
   - EGYPT
   - IRAN
-"""
+'''
 
-snapshots[
-    "test_take_region_x_nation_ok 1"
-] = """- (ALGERIA)
+snapshots['test_take_region_x_nation_ok 1'] = '''- (ALGERIA)
 - (ARGENTINA)
 - (BRAZIL)
 - (CANADA)
@@ -1485,22 +1402,16 @@ snapshots[
 - (MOZAMBIQUE)
 - (PERU)
 - ("UNITED STATES")
-"""
+'''
 
-snapshots[
-    "test_take_sort_ok 1"
-] = """- (ASIA)
+snapshots['test_take_sort_ok 1'] = '''- (ASIA)
 - (AMERICA)
 - (AFRICA)
-"""
+'''
 
-snapshots[
-    "test_take_take_ok 1"
-] = """- (AFRICA)
-"""
+snapshots['test_take_take_ok 1'] = '''- (AFRICA)
+'''
 
-snapshots[
-    "test_truediv_integer_literals_ok 1"
-] = """44
+snapshots['test_truediv_integer_literals_ok 1'] = '''44
 ...
-"""
+'''

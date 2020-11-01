@@ -1484,16 +1484,12 @@ def test_take_sort_ok(snapshot):
         """
         SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
         FROM
-          (SELECT anon_2.id AS id,
-                  anon_2.name AS name,
-                  anon_2.comment AS COMMENT
-           FROM
-             (SELECT region_1.id AS id,
-                     region_1.name AS name,
-                     region_1.comment AS COMMENT
-              FROM region AS region_1
-              LIMIT 3) AS anon_2
-           ORDER BY anon_2.name DESC) AS anon_1
+          (SELECT region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           LIMIT 3) AS anon_1
+        ORDER BY anon_1.name DESC
         """
     )
     assert_result_matches(snapshot, query)
@@ -1503,14 +1499,99 @@ def test_sort_take_ok(snapshot):
     query = q.region.sort(q.name.desc()).take(3)
     assert run(query, print_op=True) == n(
         """
-        SELECT CAST(row(anon_1.name) AS VARCHAR) AS value
-        FROM
-          (SELECT region_1.id AS id,
-                  region_1.name AS name,
-                  region_1.comment AS COMMENT
-           FROM region AS region_1
-           ORDER BY region_1.name DESC) AS anon_1
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        ORDER BY region_1.name DESC
         LIMIT 3
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_filter_sort_ok(snapshot):
+    query = q.region.filter(q.name.substring(1, 1) == "A").sort(q.name.desc())
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE SUBSTRING(region_1.name
+                        FROM 1
+                        FOR 1) = 'A'
+        ORDER BY region_1.name DESC
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_sort_filter_ok(snapshot):
+    query = q.region.sort(q.name.desc()).filter(q.name.substring(1, 1) == "A")
+    assert run(query, print_op=True) == n(
+        """
+        SELECT CAST(row(region_1.name) AS VARCHAR) AS value
+        FROM region AS region_1
+        WHERE SUBSTRING(region_1.name
+                        FROM 1
+                        FOR 1) = 'A'
+        ORDER BY region_1.name DESC
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_sort_ok(snapshot):
+    query = q.region.sort(q.name.length()).name
+    assert run(query, print_op=True) == n(
+        """
+        SELECT region_1.name AS value
+        FROM region AS region_1
+        ORDER BY length(region_1.name)
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_sort_by_aggr_ok(snapshot):
+    query = q.region.select(
+        num_customers=q.nation.customer.count(), name=q.name
+    ).sort(q.num_customers)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('num_customers', anon_1.value, 'name', region_1.name) AS value
+        FROM region AS region_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
+           FROM
+             (SELECT nation_1.id AS id,
+                     nation_1.name AS name,
+                     nation_1.region_id AS region_id,
+                     nation_1.comment AS COMMENT
+              FROM nation AS nation_1
+              WHERE nation_1.region_id = region_1.id) AS anon_3
+           JOIN customer AS customer_1 ON anon_3.id = customer_1.nation_id) AS anon_2 ON TRUE
+        LEFT OUTER JOIN LATERAL
+          (SELECT count(*) AS value
+           FROM
+             (SELECT nation_2.id AS id,
+                     nation_2.name AS name,
+                     nation_2.region_id AS region_id,
+                     nation_2.comment AS COMMENT
+              FROM nation AS nation_2
+              WHERE nation_2.region_id = region_1.id) AS anon_4
+           JOIN customer AS customer_2 ON anon_4.id = customer_2.nation_id) AS anon_1 ON TRUE
+        ORDER BY anon_2.value
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_sort_then_nav_ok(snapshot):
+    query = q.nation.select(region=q.region.name, name=q.name).sort(q.region)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('region', region_1.name, 'name', nation_1.name) AS value
+        FROM nation AS nation_1
+        JOIN region AS region_1 ON nation_1.region_id = region_1.id
+        ORDER BY region_1.name
         """
     )
     assert_result_matches(snapshot, query)
