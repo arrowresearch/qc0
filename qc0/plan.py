@@ -229,7 +229,9 @@ def Nav_to_op(syn: Nav, parent: Op):
                 syn=syn,
             )
 
-        assert False, f"Unable to lookup {syn.name}"  # pragma: no cover
+        assert (  # pragma: no cover
+            False
+        ), f"Unable to lookup {syn.name} in {parent.scope.__class__.__name__}"
 
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
@@ -247,7 +249,9 @@ def Nav_to_op(syn: Nav, parent: Op):
     elif isinstance(parent.scope, GroupScope):
         if syn.name == "_":
             if parent.card == Cardinality.SEQ:
-                assert isinstance(parent.rel, RelGroup)
+                while isinstance(parent.rel, RelParent):
+                    parent = parent.rel.parent
+                assert isinstance(parent.rel, RelGroup), parent
                 return Op(
                     rel=parent.rel.rel,
                     expr=None,
@@ -401,7 +405,7 @@ def Apply_to_op(syn: Apply, parent: Op):
 
         sig = AggrSig.get(syn.name)
         if sig:
-            assert parent.card >= Cardinality.SEQ
+            assert parent.card >= Cardinality.SEQ, parent
             return Op(
                 expr=ExprOpAggregate(op=parent, sig=sig),
                 rel=RelVoid(),

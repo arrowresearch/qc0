@@ -128,6 +128,11 @@ class Q:
     def __or__(self, o: Q):
         return self._make(syntax.BinOp(op="__or__", a=self.syn, b=to_syn(o)))
 
+    def __invert__(self):
+        return self._make(
+            syntax.Compose(self.syn, syntax.Apply(name="__not__", args=[]))
+        )
+
     def __rshift__(self, o: Q):
         return self._make(syntax.Compose(a=self.syn, b=to_syn(o)))
 

@@ -723,3 +723,174 @@ Returned Item Reporting Query (Q10)
    {..., 'name': 'Customer#000000961', 'nation': 'JAPAN', ..., 'revenue': 372764.6176},
    {..., 'name': 'Customer#000000266', 'nation': 'ALGERIA', ..., 'revenue': 347106.7501},
    {..., 'name': 'Customer#000000683', 'nation': 'FRANCE', ..., 'revenue': 328973.7152}]
+
+Important Stock Identification Query (Q11)
+------------------------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   p.name as part,
+  ...   sum(ps.supplycost * ps.availqty) as value
+  ... from
+  ...   partsupp ps,
+  ...   supplier s,
+  ...   nation n,
+  ...   part p
+  ... where
+  ...   ps.supplier_id = s.id
+  ...   and s.nation_id = n.id
+  ...   and n.name = 'GERMANY'
+  ...   and p.id = ps.part_id
+  ... group by
+  ...   p.name
+  ... having
+  ...   sum(ps.supplycost * ps.availqty) > (
+  ...     select
+  ...       sum(ps.supplycost * ps.availqty) * 0.0001
+  ...     from
+  ...       partsupp ps,
+  ...       supplier s,
+  ...       nation n
+  ...     where
+  ...       ps.supplier_id = s.id
+  ...       and s.nation_id = n.id
+  ...       and n.name = 'GERMANY'
+  ...   )
+  ... order by
+  ...   value desc;
+  ... """)
+
+::
+
+  >>> q_value = (q.supplycost * q.availqty) >> q.sum()
+
+  >>> got = (
+  ...   q.partsupp
+  ...   .filter(q.supplier.nation.name == 'GERMANY')
+  ...   .group(part=q.part.name)
+  ...   .filter((q._ >> q_value) > (q.around()._ >> q_value) * 0.0001)
+  ...   .select(part=q.part,  value=q._ >> q_value)
+  ...   .sort(q.value.desc())
+  ... ).run()
+
+  >>> got == expected
+  True
+
+  >>> got[:5] # doctest: +NORMALIZE_WHITESPACE
+  [{'part': 'almond khaki chartreuse hot seashell', 'value': 13092535.78},
+   {'part': 'tan burlywood light chartreuse powder', 'value': 11542206.53},
+   {'part': 'grey floral sienna cyan gainsboro', 'value': 9945808.42},
+   {'part': 'wheat tomato cyan lemon maroon', 'value': 9941036.4},
+   {'part': 'orange cornflower mint snow peach', 'value': 9382317.55}]
+
+Shipping Modes and Order Priority Query (Q12)
+---------------------------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   l.shipmode,
+  ...   sum(case
+  ...         when o.orderpriority ='1-URGENT' or o.orderpriority = '2-HIGH'
+  ...         then 1
+  ...         else 0
+  ...       end) as high_line_count,
+  ...   sum(case
+  ...         when o.orderpriority <> '1-URGENT' and o.orderpriority <> '2-HIGH'
+  ...         then 1
+  ...         else 0
+  ...       end) as low_line_count
+  ... from
+  ...   "order" o,
+  ...   lineitem l
+  ... where
+  ...   o.id = l.order_id
+  ...   and l.shipmode in ('MAIL', 'SHIP')
+  ...   and l.commitdate < l.receiptdate
+  ...   and l.shipdate < l.commitdate
+  ...   and l.receiptdate >= date '1994-01-01'
+  ...   and l.receiptdate < date '1995-01-01'
+  ... group by
+  ...   l.shipmode
+  ... order by
+  ...   l.shipmode
+  ... """)
+
+::
+
+  >>> q_high = (
+  ...   (q.order.orderpriority == '1-URGENT') |
+  ...   (q.order.orderpriority == '2-HIGH')
+  ... )
+
+  >>> got = (
+  ...   q.lineitem
+  ...   .filter((q.shipmode == 'MAIL') | (q.shipmode == 'SHIP'))
+  ...   .filter((q.shipdate < q.commitdate) & (q.commitdate < q.receiptdate))
+  ...   .filter((q.receiptdate >= date(1994, 1, 1)) & (q.receiptdate < date(1995, 1, 1)))
+  ...   .group(shipmode=q.shipmode)
+  ...   .select(
+  ...      shipmode=q.shipmode,
+  ...      high_line_count=q._ >> q.filter(q_high) >> q.count(),
+  ...      low_line_count=q._ >> q.filter(~q_high) >> q.count(),
+  ...   )
+  ...   .sort(q.shipmode)
+  ... ).run()
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'high_line_count': 45, 'low_line_count': 67, 'shipmode': 'MAIL'},
+   {'high_line_count': 45, 'low_line_count': 69, 'shipmode': 'SHIP'}]
+
+
+Customer Distribution Query (Q13)
+---------------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   count,
+  ...   count(*) as custdist
+  ... from (
+  ...   select
+  ...     c.name,
+  ...     count(o.key)
+  ...   from
+  ...     customer c
+  ...   left outer join "order" o
+  ...     on c.id = o.customer_id and o.comment not like '%%special%%requests%%'
+  ...   group by
+  ...     c.name) as c_orders (name, count)
+  ... group by
+  ...   count
+  ... order by
+  ...   custdist desc,
+  ...   count desc
+  ... """)
+
+::
+
+  >>> got = (
+  ...   q.customer
+  ...   .group(count=q.order.filter(~q.comment.like('%special%requests%')).count())
+  ...   .select(count=q.count, custdist=q._.count())
+  ...   .sort(q.custdist.desc(), q.count.desc())
+  ... ).run()
+
+::
+
+  >>> got == expected
+  True
+
+  >>> got[:5] # doctest: +NORMALIZE_WHITESPACE
+  [{'count': 0, 'custdist': 400},
+   {'count': 11, 'custdist': 57},
+   {'count': 12, 'custdist': 55},
+   {'count': 10, 'custdist': 53},
+   {'count': 8, 'custdist': 51}]

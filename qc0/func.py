@@ -190,25 +190,31 @@ class LowerSig(FuncSig):
     args = ()
 
 
-class Like(FuncSig):
+class LikeSig(FuncSig):
     name = "like"
     args = (Expr,)
     compile = classmethod(lambda cls, expr, args: expr.like(args[0]))
 
 
-class Ilike(FuncSig):
+class IlikeSig(FuncSig):
     name = "ilike"
     args = (Expr,)
     compile = classmethod(lambda cls, expr, args: expr.ilike(args[0]))
 
 
-class Matches(FuncSig):
+class MatchesSig(FuncSig):
     name = "matches"
     args = (Expr,)
     compile = classmethod(lambda cls, expr, args: expr.op("~")(args[0]))
 
 
-class Imatches(FuncSig):
+class ImatchesSig(FuncSig):
     name = "imatches"
     args = (Expr,)
     compile = classmethod(lambda cls, expr, args: expr.op("~*")(args[0]))
+
+
+class NotSig(FuncSig):
+    name = "__not__"
+    args = ()
+    compile = classmethod(lambda cls, expr, args: sa.not_(expr))
