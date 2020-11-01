@@ -894,3 +894,47 @@ Customer Distribution Query (Q13)
    {'count': 12, 'custdist': 55},
    {'count': 10, 'custdist': 53},
    {'count': 8, 'custdist': 51}]
+
+Promotion Effect Query (Q14)
+----------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... select
+  ...   100.00 * sum(
+  ...     case
+  ...       when p.type like 'PROMO%%'
+  ...       then l.extendedprice*(1 - l.discount)
+  ...       else 0
+  ...     end) / sum(l.extendedprice * (1 - l.discount)) as promo_revenue
+  ... from
+  ...   lineitem l,
+  ...   partsupp ps,
+  ...   part p
+  ... where
+  ...   l.partsupp_id = ps.id
+  ...   and ps.part_id = p.id
+  ...   and l.shipdate >= date '1995-09-01'
+  ...   and l.shipdate < date '1995-10-01'
+  ... """)
+
+::
+
+  >>> q_volume = q.extendedprice * (1 - q.discount)
+
+  >>> got = (
+  ...   q.lineitem
+  ...   .filter((q.shipdate >= date(1995, 9, 1)) & (q.shipdate < date(1995, 10, 1)))
+  ...   .group() >> (
+  ...     100 *
+  ...     (q._.filter(q.partsupp.part.type.like('PROMO%')) >> q_volume >> q.sum()) /
+  ...     (q._ >> q_volume >> q.sum())
+  ...   )
+  ... ).run()
+
+  >>> got == expected[0]['promo_revenue']
+  True
+
+  >>> got
+  12.409568845502271

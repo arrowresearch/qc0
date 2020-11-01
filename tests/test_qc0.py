@@ -1650,3 +1650,30 @@ def test_select_link_then_take(snapshot):
         """
     )
     assert_result_matches(snapshot, query)
+
+
+def test_group_by_none_ok(snapshot):
+    query = q.region.group().select(
+        region_count=q._.count(),
+        nation_count=q._.nation.count(),
+    )
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('region_count', anon_1.aggr_0, 'nation_count', anon_1.aggr_1) AS value
+        FROM
+          (SELECT coalesce(anon_2.value, 0) AS aggr_0,
+                  coalesce(anon_3.value, 0) AS aggr_1
+           FROM
+             (SELECT
+              FROM
+                (SELECT 1 AS anon_6) AS anon_5) AS anon_4
+           LEFT OUTER JOIN
+             (SELECT count(*) AS value
+              FROM region AS region_1) AS anon_2 ON TRUE
+           LEFT OUTER JOIN
+             (SELECT count(*) AS value
+              FROM region AS region_1
+              JOIN nation AS nation_1 ON region_1.id = nation_1.region_id) AS anon_3 ON TRUE) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
