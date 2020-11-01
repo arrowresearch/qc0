@@ -296,7 +296,7 @@ def Nav_to_op(syn: Nav, parent: Op):
         transform, type = parent.scope.lookup(syn.name)
         next_scope = type_scope(type)
         assert transform is not None, f"Unable to lookup {syn.name}"
-        expr = ExprApply(expr=ExprOp(parent), args=(), compile=transform)
+        expr = ExprApply(expr=parent.expr, args=(), compile=transform)
         return parent.grow_expr(expr=expr, scope=next_scope, syn=syn)
 
     elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
