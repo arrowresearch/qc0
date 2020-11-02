@@ -938,3 +938,74 @@ Promotion Effect Query (Q14)
 
   >>> got
   12.409568845502271
+
+Top Supplier Query (Q15)
+------------------------
+
+::
+
+  >>> expected = execute_sql("""
+  ... create or replace view revenue (supplier_no, total_revenue) as
+  ...   select
+  ...     ps.supplier_id,
+  ...     sum(l.extendedprice * (1 - l.discount))
+  ...   from
+  ...     lineitem l,
+  ...     partsupp ps
+  ...   where
+  ...     l.partsupp_id = ps.id
+  ...     and l.shipdate >= date '1996-01-01'
+  ...     and l.shipdate < date '1996-04-01'
+  ...   group by
+  ...     ps.supplier_id;
+  ...
+  ... select
+  ...   s.id,
+  ...   s.name,
+  ...   s.address,
+  ...   s.phone,
+  ...   r.total_revenue
+  ... from
+  ...   supplier s,
+  ...   revenue r
+  ... where
+  ...   s.id = r.supplier_no
+  ...   and r.total_revenue = (
+  ...     select
+  ...       max(r.total_revenue)
+  ...     from
+  ...       revenue r)
+  ... order by
+  ...   s.id;
+  ... """)
+
+::
+
+  >>> q_total_revenue = (
+  ...   q.partsupp.lineitem
+  ...   .filter((q.shipdate >= date(1996, 1, 1)) & (q.shipdate < date(1996, 4, 1)))
+  ...   >> (q.extendedprice * (1 - q.discount))
+  ...   >> q.sum()
+  ... )
+
+  >>> got = (
+  ...   q.supplier
+  ...   .select(
+  ...      id=q.id,
+  ...      name=q.name,
+  ...      address=q.address,
+  ...      phone=q.phone,
+  ...      total_revenue=q_total_revenue,
+  ...   )
+  ...   .filter(q.total_revenue == (q.around() >> q.total_revenue >> q.max()))
+  ... ).run()
+
+  >>> got == expected
+  True
+
+  >>> got # doctest: +NORMALIZE_WHITESPACE
+  [{'address': '...',
+    'id': 17,
+    'name': 'Supplier#000000017',
+    'phone': '29-601-884-9219',
+    'total_revenue': 1113801.5298}]
