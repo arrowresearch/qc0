@@ -96,10 +96,10 @@ class GroupScope(Scope):
     fields: Dict[str, Field]
     aggregates: Dict[str, Any]
 
-    def add_aggregate(self, expr):
+    def add_aggregate(self, op):
         idx = len(self.aggregates)
         name = f"aggr_{idx}"
-        self.aggregates[name] = expr
+        self.aggregates[name] = op
         return name
 
     def __yaml__(self):

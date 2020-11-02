@@ -19,7 +19,6 @@ from .op import (
     RelAroundParent,
     Expr,
     ExprOp,
-    ExprOpAggregate,
     ExprRecord,
     ExprColumn,
     ExprIdentity,
@@ -264,8 +263,8 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         at = from_obj.at
         columns = []
         for field in rel.fields.values():
-            expr, from_obj = expr_to_sql(
-                field.expr,
+            expr, from_obj = op_to_sql(
+                field.op,
                 from_obj=from_obj.replace(at=at),
             )
             columns.append(expr.label(field.name))
@@ -292,11 +291,17 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         return None, from_obj
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
-    for name, expr in rel.aggregates.items():
-        assert isinstance(expr, ExprOpAggregate), str(expr)
+    for name, op in rel.aggregates.items():
+        assert op.sig is not None
         columns, kernel = build_kernel()
-        value, inner_from_obj = op_to_sql(expr.op, from_obj=kernel)
-        value = expr.sig.compile([value])
+
+        value, inner_from_obj = rel_to_sql(op.rel, from_obj=kernel)
+        if op.expr is not None:
+            value, inner_from_obj = expr_to_sql(
+                op.expr, from_obj=inner_from_obj
+            )
+
+        value = op.sig.compile([value])
         if kernel.current in inner_from_obj.current._from_objects:
             cols = columns
         else:
@@ -312,7 +317,7 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
             inner_sel, *((c.name, c.name) for c in columns), outer=True
         )
         result_columns.append(
-            sa.func.coalesce(inner_at.c.value, expr.sig.unit).label(name)
+            sa.func.coalesce(inner_at.c.value, op.sig.unit).label(name)
         )
 
     from_obj = From.make(
@@ -322,29 +327,14 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
 
 
 def op_to_sql(op: Op, from_obj):
-    expr, from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    expr, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     if op.expr is not None:
-        expr, from_obj = expr_to_sql(op.expr, from_obj=from_obj)
-    return expr, from_obj
+        expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
 
+    if op.sig is None:
+        return expr, inner_from_obj
 
-@singledispatch
-def expr_to_sql(expr: Expr, from_obj):
-    raise NotImplementedError(  # pragma: no cover
-        f"expr_to_sql({type(expr).__name__})"
-    )
-
-
-@expr_to_sql.register
-def ExprOp_to_sql(expr: ExprOp, from_obj):
-    return op_to_sql(expr.op, from_obj)
-
-
-@expr_to_sql.register
-def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
-    expr, inner_from_obj = op_to_sql(op.op, from_obj)
     if inner_from_obj.limit is not None or inner_from_obj.order is not None:
-        expr, inner_from_obj = op_to_sql(op.op, from_obj)
         inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
         value = sa.func.coalesce(
             op.sig.compile([inner_from_obj.at.c.value]),
@@ -363,15 +353,25 @@ def ExprOpAggregate_to_sql(op: ExprOpAggregate, from_obj):
     return at.c.value, from_obj
 
 
+@singledispatch
+def expr_to_sql(expr: Expr, from_obj):
+    raise NotImplementedError(  # pragma: no cover
+        f"expr_to_sql({type(expr).__name__})"
+    )
+
+
+@expr_to_sql.register
+def ExprOp_to_sql(expr: ExprOp, from_obj):
+    return op_to_sql(expr.op, from_obj)
+
+
 @expr_to_sql.register
 def ExprRecord_to_sql(op: ExprRecord, from_obj):
     args = []
     at = from_obj.at
     for field in op.fields.values():
         args.append(sa.literal(field.name))
-        expr, from_obj = expr_to_sql(
-            field.expr, from_obj=from_obj.replace(at=at)
-        )
+        expr, from_obj = op_to_sql(field.op, from_obj=from_obj.replace(at=at))
         args.append(expr)
     return sa.func.jsonb_build_object(*args), from_obj
 

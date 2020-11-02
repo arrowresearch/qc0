@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 from sqlalchemy import Table, ForeignKey
 from sqlalchemy.sql.elements import ColumnClause
 from .base import Struct, undefined
-from .scope import Scope, Cardinality
+from .scope import Scope, EmptyScope, Cardinality
 from .syntax import Syn, Compose
 
 
@@ -24,6 +24,7 @@ class Op(Struct):
     rel: Rel
     expr: Optional[Expr]
     syn: Optional[Syn] = None
+    sig: Any = None
 
     def grow_expr(self, expr, syn=None, scope=undefined, card=undefined):
         card = self.card if card is undefined else card
@@ -48,6 +49,9 @@ class Op(Struct):
             else syn
         )
         return self.replace(rel=rel, scope=scope, card=card, syn=syn)
+
+    def aggregate(self, sig):
+        return self.replace(sig=sig, scope=EmptyScope(), card=Cardinality.ONE)
 
     def __yaml__(self):
         rep = super(Op, self).__yaml__()
@@ -119,11 +123,6 @@ class ExprOp(Expr):
     op: Op
 
 
-class ExprOpAggregate(Expr):
-    op: Op
-    sig: Any
-
-
 class ExprRecord(Expr):
     fields: Dict[str, Field]
 
@@ -149,7 +148,7 @@ class ExprApply(Expr):
 
 class Field(Struct):
     name: str
-    expr: Expr
+    op: Op
 
 
 class Sort(Struct):

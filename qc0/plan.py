@@ -52,7 +52,6 @@ from .op import (
     RelAroundParent,
     Expr,
     ExprOp,
-    ExprOpAggregate,
     ExprRecord,
     ExprColumn,
     ExprIdentity,
@@ -99,12 +98,10 @@ def build_op_expr(op: Op):
         if isinstance(op.scope, RecordScope):
             fields = {}
             for name, f in op.scope.fields.items():
-                fop = build_op(f.syn, make_parent(op.scope.parent))
-                if fop.card == Cardinality.SEQ:
-                    expr = ExprOpAggregate(op=fop, sig=JsonAggSig)
-                else:
-                    expr = ExprOp(op=fop)
-                fields[name] = Field(expr=expr, name=name)
+                field_op = build_op(f.syn, make_parent(op.scope.parent))
+                if field_op.card == Cardinality.SEQ:
+                    field_op = field_op.aggregate(JsonAggSig)
+                fields[name] = Field(op=field_op, name=name)
             return Op(
                 rel=op.rel,
                 expr=ExprRecord(fields=fields),
@@ -135,14 +132,12 @@ def build_op_expr(op: Op):
             for name, f in op.scope.fields.items():
                 fields[name] = Field(
                     name=name,
-                    expr=ExprOp(
-                        Op(
-                            expr=ExprColumn(column=sa.column(name)),
-                            rel=RelParent(parent=op),
-                            card=Cardinality.ONE,
-                            scope=EmptyScope(),
-                            syn=Nav(name),
-                        )
+                    op=Op(
+                        expr=ExprColumn(column=sa.column(name)),
+                        rel=RelParent(parent=op),
+                        card=Cardinality.ONE,
+                        scope=EmptyScope(),
+                        syn=Nav(name),
                     ),
                 )
             expr = ExprRecord(fields=fields)
@@ -153,7 +148,6 @@ def build_op_expr(op: Op):
                 scope=op.scope,
                 syn=None,
             )
-        assert False, f"unable to build an expr at this scope: {op!r}"
     return op
 
 
@@ -262,12 +256,10 @@ def Nav_to_op(syn: Nav, parent: Op):
 
             def wrap(op):
                 if op.card == Cardinality.SEQ:
-                    expr = ExprOpAggregate(op=op, sig=JsonAggSig)
+                    op = op.aggregate(JsonAggSig)
                 else:
-                    assert isinstance(op.rel, RelVoid)
-                    assert isinstance(op.expr, ExprOpAggregate)
-                    expr = op.expr
-                name = parent.scope.add_aggregate(expr)
+                    assert op.sig is not None
+                name = parent.scope.add_aggregate(op)
                 return parent.grow_expr(
                     expr=ExprColumn(column=sa.column(name)),
                     scope=EmptyScope(),
@@ -391,9 +383,7 @@ def Apply_to_op(syn: Apply, parent: Op):
             if op.expr is None:
                 if isinstance(op.scope, TableScope):
                     op = op.grow_expr(ExprIdentity(table=op.scope.table))
-                else:
-                    assert False, f"{syn.name}: unable to group by this"
-            fields[name] = Field(expr=ExprOp(op), name=name)
+            fields[name] = Field(op=op, name=name)
 
         rel = RelGroup(
             rel=parent.rel,
@@ -407,13 +397,7 @@ def Apply_to_op(syn: Apply, parent: Op):
         sig = AggrSig.get(syn.name)
         if sig:
             assert parent.card >= Cardinality.SEQ, parent
-            return Op(
-                expr=ExprOpAggregate(op=parent, sig=sig),
-                rel=RelVoid(),
-                scope=EmptyScope(),
-                card=Cardinality.ONE,
-                syn=syn,
-            )
+            return parent.aggregate(sig)
 
         sig = FuncSig.get(syn.name)
         if sig:
