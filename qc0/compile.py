@@ -133,14 +133,14 @@ def rel_to_sql(rel: Rel, from_obj):
 
 @rel_to_sql.register
 def RelVoid_to_sql(rel: RelVoid, from_obj):
-    return None, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelTable_to_sql(rel: RelTable, from_obj):
     # TODO(andreypopp): try to uncomment and see why/if we have failures
     # assert from_obj.current is None
-    return None, From.make(rel.table)
+    return From.make(rel.table)
 
 
 @rel_to_sql.register
@@ -155,15 +155,15 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
                 == from_obj.at.columns[rel.fk.parent.name]
             )
         )
-        return None, from_obj
+        return from_obj
     else:
-        val, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
+        from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         from_obj, _ = from_obj.join_at(
             rel.fk.column.table,
             (rel.fk.parent.name, rel.fk.column.name),
             navigation=not isinstance(rel.rel, RelParent),
         )
-        return val, from_obj
+        return from_obj
 
 
 @rel_to_sql.register
@@ -181,38 +181,38 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
         if from_obj.where is not None:
             sel = sel.where(from_obj.where)
         from_obj = From.make(sel.alias())
-        return None, from_obj
+        return from_obj
     else:
-        value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
+        from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         from_obj, _ = from_obj.join_at(
             rel.fk.parent.table,
             (rel.fk.column.name, rel.fk.parent.name),
             navigation=True,
         )
-        return value, from_obj
+        return from_obj
 
 
 @rel_to_sql.register
 def RelTake_to_sql(rel: RelTake, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
     if from_obj.limit is not None:
-        from_obj = from_obj.make(from_obj.to_select(value).alias())
+        from_obj = from_obj.make(from_obj.to_select(None).alias())
     at = from_obj.at
     take, from_obj = expr_to_sql(rel.take, from_obj)
     from_obj = from_obj.replace(at=at)
     from_obj = from_obj.add_limit(take)
-    return value, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelSort_to_sql(rel: RelSort, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
     if from_obj.limit is not None or from_obj.order is not None:
-        from_obj = from_obj.make(from_obj.to_select(value).alias())
+        from_obj = from_obj.make(from_obj.to_select(None).alias())
     at = from_obj.at
     order_by = []
     for sort in rel.sort:
@@ -222,37 +222,36 @@ def RelSort_to_sql(rel: RelSort, from_obj):
         order_by.append(col)
     from_obj = from_obj.replace(at=at)
     from_obj = from_obj.add_order(order_by)
-    return value, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelFilter_to_sql(rel: RelFilter, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj)
+    from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with WHERE.
     if from_obj.limit is not None:
-        from_obj = from_obj.make(from_obj.to_select(value).alias())
+        from_obj = from_obj.make(from_obj.to_select(None).alias())
     at = from_obj.at
     expr, from_obj = expr_to_sql(rel.expr, from_obj)
     from_obj = from_obj.replace(at=at)
     from_obj = from_obj.add_where(expr)
-    return value, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelParent_to_sql(rel: RelParent, from_obj):
-    return None, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelAggregateParent_to_sql(rel: RelAggregateParent, from_obj):
-    return None, from_obj
+    return from_obj
 
 
 @rel_to_sql.register
 def RelGroup_to_sql(rel: RelGroup, from_obj):
-    value, from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
-    assert value is None
+    from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
 
     # TODO(andreypopp): might need to convert this to CTE for complex
     # expressions
@@ -288,14 +287,15 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         from_obj = From.make(sel)
 
     if not rel.aggregates:
-        return None, from_obj
+        return from_obj
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
     for name, op in rel.aggregates.items():
         assert op.sig is not None
         columns, kernel = build_kernel()
 
-        value, inner_from_obj = rel_to_sql(op.rel, from_obj=kernel)
+        value = None
+        inner_from_obj = rel_to_sql(op.rel, from_obj=kernel)
         if op.expr is not None:
             value, inner_from_obj = expr_to_sql(
                 op.expr, from_obj=inner_from_obj
@@ -323,11 +323,12 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
     from_obj = From.make(
         sa.select(result_columns, from_obj=from_obj.current).alias()
     )
-    return None, from_obj
+    return from_obj
 
 
 def op_to_sql(op: Op, from_obj):
-    expr, inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    expr = None
+    inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     if op.expr is not None:
         expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
 
