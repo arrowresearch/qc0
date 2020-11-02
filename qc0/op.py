@@ -69,7 +69,7 @@ class RelVoid(Rel):
 
 
 class RelWithCompute(Rel):
-    compute: List[Tuple[str, Op]]
+    compute: Dict[int, Tuple[Field]]
 
 
 class RelTable(RelWithCompute):
