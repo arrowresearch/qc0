@@ -21,6 +21,7 @@ from .op import (
     ExprOp,
     ExprRecord,
     ExprColumn,
+    ExprCompute,
     ExprIdentity,
     ExprConst,
     ExprApply,
@@ -104,17 +105,16 @@ class From(Struct):
             from_obj = from_obj.alias()
         return From(current=from_obj, at=from_obj, existing={})
 
-    def to_select(self, value):
-        from_obj = self.current
-        if from_obj is None:
-            sel = sa.select([*self.group_by_columns, value.label("value")])
-        elif value is None:
-            sel = from_obj.select()
+    def to_select(self, value, *compute):
+
+        cols = [*self.group_by_columns, *compute]
+        if value is not None:
+            cols.append(value.label("value"))
         else:
-            sel = sa.select(
-                [*self.group_by_columns, value.label("value")],
-                from_obj=from_obj,
-            )
+            cols.append(self.at)
+
+        sel = sa.select(cols, from_obj=self.current)
+
         if self.where is not None:
             sel = sel.where(self.where)
         if self.order is not None:
@@ -122,6 +122,36 @@ class From(Struct):
         if self.limit is not None:
             sel = sel.limit(self.limit)
         return sel
+
+
+def op_to_sql(op: Op, from_obj):
+    if op.expr is not None:
+        expr_collect(op.expr)
+    expr = None
+    inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
+    if op.expr is not None:
+        expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
+
+    if op.sig is None:
+        return expr, inner_from_obj
+
+    if inner_from_obj.limit is not None or inner_from_obj.order is not None:
+        inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
+        value = sa.func.coalesce(
+            op.sig.compile([inner_from_obj.at.c.value]),
+            op.sig.unit,
+        )
+    else:
+        value = sa.func.coalesce(
+            op.sig.compile([expr]),
+            op.sig.unit,
+        )
+    sel = inner_from_obj.to_select(value).alias()
+    if from_obj.at is not None:
+        from_obj, at = from_obj.join_lateral(sel)
+    else:
+        from_obj, at = from_obj.join_at(sel)
+    return at.c.value, from_obj
 
 
 @singledispatch
@@ -138,13 +168,31 @@ def RelVoid_to_sql(rel: RelVoid, from_obj):
 
 @rel_to_sql.register
 def RelTable_to_sql(rel: RelTable, from_obj):
-    # TODO(andreypopp): try to uncomment and see why/if we have failures
-    # assert from_obj.current is None
-    return From.make(rel.table)
+    if rel.compute:
+        for _, op in rel.compute:
+            if op.expr is not None:
+                expr_collect(op.expr)
+
+    from_obj = From.make(rel.table)
+
+    if rel.compute:
+        at = from_obj.at
+        columns = []
+        for name, op in rel.compute:
+            expr, from_obj = op_to_sql(op, from_obj.replace(at=at))
+            columns.append(expr.label(name))
+        from_obj = from_obj.replace(at=at)
+        from_obj = From.make(from_obj.to_select(None, *columns).alias())
+    return from_obj
 
 
 @rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj):
+    if rel.compute:
+        for _, op in rel.compute:
+            if op.expr is not None:
+                expr_collect(op.expr)
+
     if isinstance(rel.rel, RelAroundParent):
         table = rel.fk.column.table
         from_obj = From.make(
@@ -155,7 +203,6 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
                 == from_obj.at.columns[rel.fk.parent.name]
             )
         )
-        return from_obj
     else:
         from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         from_obj, _ = from_obj.join_at(
@@ -163,11 +210,26 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
             (rel.fk.parent.name, rel.fk.column.name),
             navigation=not isinstance(rel.rel, RelParent),
         )
-        return from_obj
+
+    if rel.compute:
+        at = from_obj.at
+        columns = []
+        for name, op in rel.compute:
+            expr, from_obj = op_to_sql(op, from_obj.replace(at=at))
+            columns.append(expr.label(name))
+        from_obj = from_obj.replace(at=at)
+        from_obj = From.make(from_obj.to_select(None, *columns).alias())
+
+    return from_obj
 
 
 @rel_to_sql.register
 def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
+    if rel.compute:
+        for _, op in rel.compute:
+            if op.expr is not None:
+                expr_collect(op.expr)
+
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
         sel = (
@@ -181,7 +243,6 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
         if from_obj.where is not None:
             sel = sel.where(from_obj.where)
         from_obj = From.make(sel.alias())
-        return from_obj
     else:
         from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         from_obj, _ = from_obj.join_at(
@@ -189,7 +250,17 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
             (rel.fk.column.name, rel.fk.parent.name),
             navigation=True,
         )
-        return from_obj
+
+    if rel.compute:
+        at = from_obj.at
+        columns = []
+        for name, op in rel.compute:
+            expr, from_obj = op_to_sql(op, from_obj.replace(at=at))
+            columns.append(expr.label(name))
+        from_obj = from_obj.replace(at=at)
+        from_obj = From.make(from_obj.to_select(None, *columns).alias())
+
+    return from_obj
 
 
 @rel_to_sql.register
@@ -208,6 +279,8 @@ def RelTake_to_sql(rel: RelTake, from_obj):
 
 @rel_to_sql.register
 def RelSort_to_sql(rel: RelSort, from_obj):
+    for sort in rel.sort:
+        expr_collect(sort.expr)
     from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
@@ -227,6 +300,7 @@ def RelSort_to_sql(rel: RelSort, from_obj):
 
 @rel_to_sql.register
 def RelFilter_to_sql(rel: RelFilter, from_obj):
+    expr_collect(rel.expr)
     from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with WHERE.
@@ -286,13 +360,16 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         )
         from_obj = From.make(sel)
 
-    if not rel.aggregates:
+    if not rel.compute:
         return from_obj
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
-    for name, op in rel.aggregates.items():
+    for name, op in rel.compute:
         assert op.sig is not None
         columns, kernel = build_kernel()
+
+        if op.expr is not None:
+            expr_collect(op.expr)
 
         value = None
         inner_from_obj = rel_to_sql(op.rel, from_obj=kernel)
@@ -326,34 +403,6 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
     return from_obj
 
 
-def op_to_sql(op: Op, from_obj):
-    expr = None
-    inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
-    if op.expr is not None:
-        expr, inner_from_obj = expr_to_sql(op.expr, from_obj=inner_from_obj)
-
-    if op.sig is None:
-        return expr, inner_from_obj
-
-    if inner_from_obj.limit is not None or inner_from_obj.order is not None:
-        inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
-        value = sa.func.coalesce(
-            op.sig.compile([inner_from_obj.at.c.value]),
-            op.sig.unit,
-        )
-    else:
-        value = sa.func.coalesce(
-            op.sig.compile([expr]),
-            op.sig.unit,
-        )
-    sel = inner_from_obj.to_select(value).alias()
-    if from_obj.at is not None:
-        from_obj, at = from_obj.join_lateral(sel)
-    else:
-        from_obj, at = from_obj.join_at(sel)
-    return at.c.value, from_obj
-
-
 @singledispatch
 def expr_to_sql(expr: Expr, from_obj):
     raise NotImplementedError(  # pragma: no cover
@@ -383,6 +432,17 @@ def ExprColumn_to_sql(op: ExprColumn, from_obj):
 
 
 @expr_to_sql.register
+def ExprCompute_to_sql(expr: ExprCompute, from_obj):
+    found = None
+    for name, op in expr.rel.compute:
+        if op == expr.op:
+            found = name
+            break
+    assert found
+    return sa.column(found, _selectable=from_obj.at), from_obj
+
+
+@expr_to_sql.register
 def ExprIdentity_to_sql(op: ExprIdentity, from_obj):
     pk = []
     for col in op.table.primary_key.columns:
@@ -409,3 +469,53 @@ def ExprApply_to_sql(op: ExprApply, from_obj):
     from_obj = from_obj.replace(at=at)
     expr = op.compile(parent, args)
     return expr, from_obj
+
+
+@singledispatch
+def expr_collect(expr: Expr):
+    raise NotImplementedError(  # pragma: no cover
+        f"expr_collect({type(expr).__name__})"
+    )
+
+
+@expr_collect.register
+def ExprOp_collect(expr: ExprOp):
+    if expr.op.expr is not None:
+        expr_collect(expr.op.expr)
+
+
+@expr_collect.register
+def ExprRecord_collect(expr: ExprRecord):
+    for field in expr.fields.values():
+        if field.op.expr is not None:
+            expr_collect(field.op.expr)
+
+
+@expr_collect.register
+def ExprColumn_collect(expr: ExprColumn):
+    pass
+
+
+@expr_collect.register
+def ExprAggregate_collect(expr: ExprCompute):
+    idx = len(expr.rel.compute)
+    name = f"compute_{idx}"
+    expr.rel.compute.append((name, expr.op))
+
+
+@expr_collect.register
+def ExprIdentity_collect(expr: ExprIdentity):
+    pass
+
+
+@expr_collect.register
+def ExprConst_collect(expr: ExprConst):
+    pass
+
+
+@expr_collect.register
+def ExprApply_collect(expr: ExprApply):
+    if expr.expr:
+        expr_collect(expr.expr)
+    for arg in expr.args:
+        expr_collect(arg)

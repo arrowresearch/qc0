@@ -979,6 +979,15 @@ snapshots[
 """
 
 snapshots[
+    "test_select_nav_agg_ok 1"
+] = """- 5
+- 5
+- 5
+- 5
+- 5
+"""
+
+snapshots[
     "test_select_nav_select_nav_column_ok 1"
 ] = """- AFRICA
 - AMERICA

@@ -50,10 +50,12 @@ from .op import (
     RelSort,
     RelGroup,
     RelAroundParent,
+    RelWithCompute,
     Expr,
     ExprOp,
     ExprRecord,
     ExprColumn,
+    ExprCompute,
     ExprIdentity,
     ExprConst,
     ExprApply,
@@ -96,15 +98,10 @@ def build_op(syn: Syn, parent: Op):
 def build_op_expr(op: Op):
     if op.expr is None:
         if isinstance(op.scope, RecordScope):
-            fields = {}
-            for name, f in op.scope.fields.items():
-                field_op = build_op(f.syn, make_parent(op.scope.parent))
-                if field_op.card == Cardinality.SEQ:
-                    field_op = field_op.aggregate(JsonAggSig)
-                fields[name] = Field(op=field_op, name=name)
+            expr = ExprRecord(fields=op.scope.op_fields)
             return Op(
                 rel=op.rel,
-                expr=ExprRecord(fields=fields),
+                expr=expr,
                 card=op.card,
                 scope=op.scope,
                 syn=Select(fields=op.scope.fields),
@@ -184,11 +181,13 @@ def Nav_to_op(syn: Nav, parent: Op):
 
     if isinstance(parent.scope, UnivScope):
         table = parent.scope.tables[syn.name]
+        rel = RelTable(table=table, compute=[])
+        scope = TableScope(rel=rel, table=table)
         return Op(
-            rel=RelTable(table=table),
+            rel=rel,
             expr=None,
             card=Cardinality.SEQ,
-            scope=TableScope(table=table),
+            scope=scope,
             syn=syn,
         )
 
@@ -207,18 +206,22 @@ def Nav_to_op(syn: Nav, parent: Op):
         fk = parent.scope.foreign_keys.get(syn.name)
         if fk:
             assert parent.expr is None, parent.expr
+            rel = RelJoin(rel=parent.rel, fk=fk, compute=[])
+            scope = TableScope(rel=rel, table=fk.column.table)
             return parent.grow_rel(
-                rel=RelJoin(rel=parent.rel, fk=fk),
-                scope=TableScope(table=fk.column.table),
+                rel=rel,
+                scope=scope,
                 syn=syn,
             )
 
         fk = parent.scope.rev_foreign_keys.get(syn.name)
         if fk:
             assert parent.expr is None, parent.expr
+            rel = RelRevJoin(rel=parent.rel, fk=fk, compute=[])
+            scope = TableScope(rel=rel, table=fk.parent.table)
             return parent.grow_rel(
-                rel=RelRevJoin(rel=parent.rel, fk=fk),
-                scope=TableScope(table=fk.parent.table),
+                rel=rel,
+                scope=scope,
                 card=Cardinality.SEQ,
                 syn=syn,
             )
@@ -229,11 +232,32 @@ def Nav_to_op(syn: Nav, parent: Op):
 
     elif isinstance(parent.scope, RecordScope):
         if syn.name in parent.scope.fields:
-            field = parent.scope.fields[syn.name]
-            return run_to_op(
-                field.syn,
-                parent=parent.replace(scope=parent.scope.parent.scope),
-            )
+            op_field = parent.scope.op_fields[syn.name]
+            if (
+                parent.card == Cardinality.SEQ
+                and op_field.op.sig is not None
+                and op_field.op.sig != JsonAggSig
+            ):
+                scope = parent.scope
+                while isinstance(scope, RecordScope):
+                    scope = scope.parent
+                assert isinstance(scope.rel, RelWithCompute), scope
+                return parent.grow_expr(
+                    expr=ExprCompute(
+                        op=op_field.op,
+                        rel=scope.rel,
+                    ),
+                    scope=EmptyScope(),
+                    syn=syn,
+                )
+            elif parent.card == Cardinality.SEQ:
+                field = parent.scope.fields[syn.name]
+                return run_to_op(
+                    field.syn,
+                    parent=parent.replace(scope=parent.scope.parent),
+                )
+            else:
+                return op_field.op
         else:
             names = ", ".join(parent.scope.fields)  # pragma: no cover
             assert (  # pragma: no cover
@@ -259,9 +283,11 @@ def Nav_to_op(syn: Nav, parent: Op):
                     op = op.aggregate(JsonAggSig)
                 else:
                     assert op.sig is not None
-                name = parent.scope.add_aggregate(op)
                 return parent.grow_expr(
-                    expr=ExprColumn(column=sa.column(name)),
+                    expr=ExprCompute(
+                        op=op,
+                        rel=parent.scope.rel,
+                    ),
                     scope=EmptyScope(),
                     syn=syn,
                 )
@@ -314,7 +340,13 @@ def Select_to_op(syn: Select, parent: Op):
     #
     # See build_op_expr where we create ExprRecord instead for the selects
     # which are "final".
-    scope = RecordScope(parent=parent, fields=syn.fields)
+    fields = {}
+    for name, f in syn.fields.items():
+        field_op = build_op(f.syn, make_parent(parent))
+        if field_op.card == Cardinality.SEQ:
+            field_op = field_op.aggregate(JsonAggSig)
+        fields[name] = Field(op=field_op, name=name)
+    scope = RecordScope(parent=parent.scope, fields=syn.fields, op_fields=fields)
     return parent.replace(scope=scope)
 
 
@@ -376,7 +408,6 @@ def Apply_to_op(syn: Apply, parent: Op):
             parent.card >= Cardinality.SEQ
         ), f"{syn.name}(...): expected a sequence of items"
         # TODO(andreypopp): fix usage of syn.args here
-        scope = GroupScope(scope=parent.scope, fields=syn.args, aggregates={})
         fields = {}
         for name, f in syn.args.items():
             op = run_to_op(f.syn, make_parent(parent))
@@ -385,19 +416,19 @@ def Apply_to_op(syn: Apply, parent: Op):
                     op = op.grow_expr(ExprIdentity(table=op.scope.table))
             fields[name] = Field(op=op, name=name)
 
-        rel = RelGroup(
-            rel=parent.rel,
-            fields=fields,
-            aggregates=scope.aggregates,
-        )
+        rel = RelGroup(rel=parent.rel, fields=fields, compute=[])
+        scope = GroupScope(scope=parent.scope, fields=syn.args, rel=rel)
         card = Cardinality.SEQ if fields else Cardinality.ONE
         return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)
     else:
 
         sig = AggrSig.get(syn.name)
         if sig:
-            assert parent.card >= Cardinality.SEQ, parent
-            return parent.aggregate(sig)
+            if parent.card == Cardinality.ONE and parent.sig == JsonAggSig:
+                return parent.aggregate(sig)
+            else:
+                assert parent.card >= Cardinality.SEQ, parent
+                return parent.aggregate(sig)
 
         sig = FuncSig.get(syn.name)
         if sig:

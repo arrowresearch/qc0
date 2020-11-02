@@ -54,6 +54,7 @@ class TableScope(Scope):
     fk relationships.
     """
 
+    rel: Any
     table: sa.Table
 
     @property
@@ -82,6 +83,7 @@ class RecordScope(Scope):
 
     parent: Any
     fields: Dict[str, Field]
+    op_fields: Dict[str, Any]
 
     def __yaml__(self):
         return {"parent": self.parent, "fields": list(self.fields)}
@@ -94,13 +96,7 @@ class GroupScope(Scope):
 
     scope: Scope
     fields: Dict[str, Field]
-    aggregates: Dict[str, Any]
-
-    def add_aggregate(self, op):
-        idx = len(self.aggregates)
-        name = f"aggr_{idx}"
-        self.aggregates[name] = op
-        return name
+    rel: Any
 
     def __yaml__(self):
         return {"scope": self.scope, "fields": list(self.fields)}

@@ -1014,10 +1014,10 @@ def test_group_nation_by_region_select_aggr_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('ref', anon_1.reg, 'count', anon_1.aggr_0) AS value
+        SELECT jsonb_build_object('ref', anon_1.reg, 'count', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.reg AS reg,
-                  coalesce(anon_3.value, 0) AS aggr_0
+                  coalesce(anon_3.value, 0) AS compute_0
            FROM
              (SELECT region_1.name AS reg
               FROM nation AS nation_1
@@ -1041,10 +1041,10 @@ def test_group_nation_by_region_select_aggr_link_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('ref', anon_1.reg, 'customer_count', anon_1.aggr_0) AS value
+        SELECT jsonb_build_object('ref', anon_1.reg, 'customer_count', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.reg AS reg,
-                  coalesce(anon_3.value, 0) AS aggr_0
+                  coalesce(anon_3.value, 0) AS compute_0
            FROM
              (SELECT region_1.name AS reg
               FROM nation AS nation_1
@@ -1070,11 +1070,11 @@ def test_group_nation_by_region_select_aggr_col_and_link_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('ref', anon_1.reg, 'nation_count', anon_1.aggr_0, 'customer_count', anon_1.aggr_1) AS value
+        SELECT jsonb_build_object('ref', anon_1.reg, 'nation_count', anon_1.compute_0, 'customer_count', anon_1.compute_1) AS value
         FROM
           (SELECT anon_2.reg AS reg,
-                  coalesce(anon_3.value, 0) AS aggr_0,
-                  coalesce(anon_4.value, 0) AS aggr_1
+                  coalesce(anon_3.value, 0) AS compute_0,
+                  coalesce(anon_4.value, 0) AS compute_1
            FROM
              (SELECT region_1.name AS reg
               FROM nation AS nation_1
@@ -1105,10 +1105,10 @@ def test_group_nation_by_region_select_aggr_filter_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('reg', anon_1.reg, 'count', anon_1.aggr_0) AS value
+        SELECT jsonb_build_object('reg', anon_1.reg, 'count', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.reg AS reg,
-                  coalesce(anon_3.value, 0) AS aggr_0
+                  coalesce(anon_3.value, 0) AS compute_0
            FROM
              (SELECT region_1.name AS reg
               FROM nation AS nation_1
@@ -1130,10 +1130,10 @@ def test_group_nation_by_region_select_aggr_array_ok(snapshot):
     query = q.nation.group(reg=q.region.name).select(reg=q.reg, all=q._.name)
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('reg', anon_1.reg, 'all', anon_1.aggr_0) AS value
+        SELECT jsonb_build_object('reg', anon_1.reg, 'all', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.reg AS reg,
-                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS compute_0
            FROM
              (SELECT region_1.name AS reg
               FROM nation AS nation_1
@@ -1220,10 +1220,10 @@ def test_group_binop_aggr_ok(snapshot):
     query = q.region.group(len=q.name).select(names=q._.name + "!")
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('names', anon_1.aggr_0) AS value
+        SELECT jsonb_build_object('names', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.len AS LEN,
-                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0
+                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS compute_0
            FROM
              (SELECT region_1.name AS LEN
               FROM region AS region_1
@@ -1250,11 +1250,11 @@ def test_nested_group(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('r1', anon_1.r1, 'names', anon_1.aggr_0, 'nested', anon_1.aggr_1) AS value
+        SELECT jsonb_build_object('r1', anon_1.r1, 'names', anon_1.compute_0, 'nested', anon_1.compute_1) AS value
         FROM
           (SELECT anon_2.r1 AS r1,
-                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS aggr_0,
-                  coalesce(anon_4.value, CAST('[]' AS JSONB)) AS aggr_1
+                  coalesce(anon_3.value, CAST('[]' AS JSONB)) AS compute_0,
+                  coalesce(anon_4.value, CAST('[]' AS JSONB)) AS compute_1
            FROM
              (SELECT SUBSTRING(nation_1.name
                                FROM 1
@@ -1274,11 +1274,11 @@ def test_nested_group(snapshot):
                                  FOR 1)) AS anon_3 ON anon_2.r1 = anon_3.r1
            LEFT OUTER JOIN
              (SELECT anon_5.r1 AS r1,
-                     jsonb_agg(jsonb_build_object('r2', anon_5.r2, 'names2', anon_5.aggr_0)) AS value
+                     jsonb_agg(jsonb_build_object('r2', anon_5.r2, 'names2', anon_5.compute_0)) AS value
               FROM
                 (SELECT anon_6.r1 AS r1,
                         anon_6.r2 AS r2,
-                        coalesce(anon_7.value, CAST('[]' AS JSONB)) AS aggr_0
+                        coalesce(anon_7.value, CAST('[]' AS JSONB)) AS compute_0
                  FROM
                    (SELECT SUBSTRING(nation_1.name
                                      FROM 1
@@ -1659,10 +1659,10 @@ def test_group_by_none_ok(snapshot):
     )
     assert run(query, print_op=True) == n(
         """
-        SELECT jsonb_build_object('region_count', anon_1.aggr_0, 'nation_count', anon_1.aggr_1) AS value
+        SELECT jsonb_build_object('region_count', anon_1.compute_0, 'nation_count', anon_1.compute_1) AS value
         FROM
-          (SELECT coalesce(anon_2.value, 0) AS aggr_0,
-                  coalesce(anon_3.value, 0) AS aggr_1
+          (SELECT coalesce(anon_2.value, 0) AS compute_0,
+                  coalesce(anon_3.value, 0) AS compute_1
            FROM
              (SELECT
               FROM
@@ -1674,6 +1674,31 @@ def test_group_by_none_ok(snapshot):
              (SELECT count(*) AS value
               FROM region AS region_1
               JOIN nation AS nation_1 ON region_1.id = nation_1.region_id) AS anon_3 ON TRUE) AS anon_1
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_select_nav_agg_ok(snapshot):
+    query = q.region.select(c=q.nation.count()).c
+    assert run(query, print_op=True) == n(
+        """
+        SELECT anon_1.compute_0 AS value
+        FROM
+          (SELECT anon_2.value AS compute_0,
+                  region_1.id AS id,
+                  region_1.name AS name,
+                  region_1.comment AS COMMENT
+           FROM region AS region_1
+           LEFT OUTER JOIN LATERAL
+             (SELECT coalesce(count(*), 0) AS value
+              FROM
+                (SELECT nation_1.id AS id,
+                        nation_1.name AS name,
+                        nation_1.region_id AS region_id,
+                        nation_1.comment AS COMMENT
+                 FROM nation AS nation_1
+                 WHERE nation_1.region_id = region_1.id) AS anon_3) AS anon_2 ON TRUE) AS anon_1
         """
     )
     assert_result_matches(snapshot, query)

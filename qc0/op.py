@@ -10,7 +10,7 @@
 """
 
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from sqlalchemy import Table, ForeignKey
 from sqlalchemy.sql.elements import ColumnClause
 from .base import Struct, undefined
@@ -68,16 +68,20 @@ class RelVoid(Rel):
     pass
 
 
-class RelTable(Rel):
+class RelWithCompute(Rel):
+    compute: List[Tuple[str, Op]]
+
+
+class RelTable(RelWithCompute):
     table: Table
 
 
-class RelJoin(Rel):
+class RelJoin(RelWithCompute):
     rel: Rel
     fk: ForeignKey
 
 
-class RelRevJoin(Rel):
+class RelRevJoin(RelWithCompute):
     rel: Rel
     fk: ForeignKey
 
@@ -109,10 +113,9 @@ class RelSort(Rel):
     sort: List[Sort]
 
 
-class RelGroup(Rel):
+class RelGroup(RelWithCompute):
     rel: Rel
     fields: Dict[str, Field]
-    aggregates: Dict[str, Field]
 
 
 class Expr(Struct):
@@ -129,6 +132,11 @@ class ExprRecord(Expr):
 
 class ExprColumn(Expr):
     column: ColumnClause
+
+
+class ExprCompute(Expr):
+    op: Op
+    rel: Rel
 
 
 class ExprIdentity(Expr):
