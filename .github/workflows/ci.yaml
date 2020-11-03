@@ -48,7 +48,9 @@ jobs:
         run: psql -1 -f ./db.sql
       - name: Install dependencies
         run: poetry install
-      - name: Check formatting
+      - name: Run formatting checks
         run: make fmt
+      - name: Run linter checks
+        run: make lint
       - name: Run tests
         run: make test-cov

@@ -1,5 +1,5 @@
 import click
-from datetime import date
+from datetime import date  # noqa: F401
 
 
 @click.command()

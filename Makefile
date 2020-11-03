@@ -16,6 +16,9 @@ up:
 down:
 	@w down
 
+lint:
+	@flake8 qc0/ tests/
+
 test:
 	@pytest $(PYTEST_ARGS)
 
