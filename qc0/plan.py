@@ -30,6 +30,7 @@ from .sig import (
 )
 from .scope import (
     Cardinality,
+    Scope,
     EmptyScope,
     UnivScope,
     TableScope,
@@ -160,12 +161,6 @@ def build_op_expr(op: Op):
     return op
 
 
-@functools.singledispatch
-def to_op(syn: ty.Optional[Syn], parent: Op):
-    """ Produce an operation out of a query."""
-    raise NotImplementedError(type(syn))  # pragma: no cover
-
-
 def run_to_op(syn, parent):
     op = to_op(syn, parent)
     if isinstance(op, tuple):
@@ -183,6 +178,17 @@ def norm_to_op(syn, parent):
         return res, lambda op: op
 
 
+#
+# Produce operation out of syntax
+#
+
+
+@functools.singledispatch
+def to_op(syn: ty.Optional[Syn], parent: Op):
+    """ Produce an operation out of a query."""
+    raise NotImplementedError(type(syn))  # pragma: no cover
+
+
 @to_op.register
 def None_to_op(syn: type(None), parent: Op):
     return parent
@@ -190,152 +196,7 @@ def None_to_op(syn: type(None), parent: Op):
 
 @to_op.register
 def Nav_to_op(syn: Nav, parent: Op):
-
-    if isinstance(parent.scope, UnivScope):
-        table = parent.scope.tables[syn.name]
-        rel = RelTable(table=table, compute={})
-        scope = TableScope(rel=rel, table=table)
-        return Op(
-            rel=rel,
-            expr=None,
-            card=Cardinality.SEQ,
-            scope=scope,
-            syn=syn,
-        )
-
-    elif isinstance(parent.scope, TableScope):
-        table = parent.scope.table
-
-        if syn.name in table.columns:
-            column = table.columns[syn.name]
-            next_scope = type_scope(column.type)
-            return parent.grow_expr(
-                scope=next_scope,
-                expr=ExprColumn(column=column),
-                syn=syn,
-            )
-
-        fk = parent.scope.foreign_keys.get(syn.name)
-        if fk:
-            assert parent.expr is None, parent.expr
-            rel = RelJoin(rel=parent.rel, fk=fk, compute={})
-            scope = TableScope(rel=rel, table=fk.column.table)
-            return parent.grow_rel(
-                rel=rel,
-                scope=scope,
-                syn=syn,
-            )
-
-        fk = parent.scope.rev_foreign_keys.get(syn.name)
-        if fk:
-            assert parent.expr is None, parent.expr
-            rel = RelRevJoin(rel=parent.rel, fk=fk, compute={})
-            scope = TableScope(rel=rel, table=fk.parent.table)
-            return parent.grow_rel(
-                rel=rel,
-                scope=scope,
-                card=Cardinality.SEQ,
-                syn=syn,
-            )
-
-        assert (  # pragma: no cover
-            False
-        ), f"Unable to lookup {syn.name} in {parent.scope.__class__.__name__}"
-
-    elif isinstance(parent.scope, RecordScope):
-        if syn.name in parent.scope.fields:
-            op_field = parent.scope.op_fields[syn.name]
-            if op_field.op.sig and not isinstance(op_field.op.sig, JsonAggSig):
-                scope = parent.scope
-                while isinstance(scope, RecordScope):
-                    scope = scope.parent
-                assert isinstance(scope.rel, RelWithCompute), scope
-                return parent.grow_expr(
-                    expr=ExprCompute(
-                        op=op_field.op,
-                        rel=scope.rel,
-                    ),
-                    scope=EmptyScope(),
-                    syn=syn,
-                )
-            elif parent.card == Cardinality.SEQ:
-                field = parent.scope.fields[syn.name]
-                return run_to_op(
-                    field.syn,
-                    parent=parent.replace(scope=parent.scope.parent),
-                )
-            else:
-                return op_field.op
-        else:
-            names = ", ".join(parent.scope.fields)  # pragma: no cover
-            assert (  # pragma: no cover
-                False
-            ), f"Unable to lookup {syn.name} in record scope, names: {names}"
-
-    elif isinstance(parent.scope, GroupScope):
-        if syn.name == "_":
-            if parent.card == Cardinality.SEQ:
-                while isinstance(parent.rel, RelParent):
-                    parent = parent.rel.parent
-                assert isinstance(parent.rel, RelGroup), parent
-                return Op(
-                    rel=parent.rel.rel,
-                    expr=None,
-                    card=Cardinality.SEQ,
-                    scope=parent.scope.scope,
-                    syn=syn,
-                )
-
-            def wrap(op):
-                if op.card == Cardinality.SEQ:
-                    op = op.aggregate(JsonAggSig())
-                else:
-                    assert op.sig is not None
-                return parent.grow_expr(
-                    expr=ExprCompute(
-                        op=op,
-                        rel=parent.scope.rel,
-                    ),
-                    scope=EmptyScope(),
-                    syn=syn,
-                )
-
-            rel = RelAggregateParent()
-
-            return (
-                Op(
-                    rel=rel,
-                    expr=None,
-                    scope=parent.scope.scope,
-                    card=Cardinality.SEQ,
-                    syn=syn,
-                ),
-                wrap,
-            )
-        if syn.name in parent.scope.fields:
-            field = parent.scope.fields[syn.name]
-            expr = ExprColumn(column=sa.column(syn.name))
-            return parent.grow_expr(expr=expr, scope=EmptyScope(), syn=syn)
-        else:
-            names = ", ".join(parent.scope.fields)  # pragma: no cover
-            assert (  # pragma: no cover
-                False
-            ), f"Unable to lookup {syn.name} in record scope, names: {names}"
-
-    elif isinstance(parent.scope, SyntheticScope):
-        transform, type = parent.scope.lookup(syn.name)
-        next_scope = type_scope(type)
-        assert transform is not None, f"Unable to lookup {syn.name}"
-        expr = ExprApply(expr=parent.expr, args=(), compile=transform)
-        return parent.grow_expr(expr=expr, scope=next_scope, syn=syn)
-
-    elif isinstance(parent.scope, EmptyScope):  # pragma: no cover
-        assert (
-            False
-        ), f"Unable to lookup {syn.name} in empty scope"  # pragma: no cover
-
-    else:
-        assert False  # pragma: no cover
+    return navigate(parent.scope, syn, parent)
 
 
 @to_op.register
@@ -424,6 +285,175 @@ def Compose_to_op(syn: Compose, parent: Op):
 @to_op.register
 def Desc_to_op(syn: Desc, parent: Op):
     assert False, "desc() is only valid inside sort(..)"
+
+
+#
+# Navigation
+#
+
+
+@functools.singledispatch
+def navigate(scope: Scope, syn: Nav, parent: Op):
+    raise NotImplementedError(type(syn))  # pragma: no cover
+
+
+@navigate.register
+def UnivScope_navigate(scope: UnivScope, syn: Nav, parent: Op):
+    table = parent.scope.tables[syn.name]
+    rel = RelTable(table=table, compute={})
+    scope = TableScope(rel=rel, table=table)
+    return Op(
+        rel=rel,
+        expr=None,
+        card=Cardinality.SEQ,
+        scope=scope,
+        syn=syn,
+    )
+
+
+@navigate.register
+def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
+    table = parent.scope.table
+
+    if syn.name in table.columns:
+        column = table.columns[syn.name]
+        next_scope = type_scope(column.type)
+        return parent.grow_expr(
+            scope=next_scope,
+            expr=ExprColumn(column=column),
+            syn=syn,
+        )
+
+    fk = parent.scope.foreign_keys.get(syn.name)
+    if fk:
+        assert parent.expr is None, parent.expr
+        rel = RelJoin(rel=parent.rel, fk=fk, compute={})
+        scope = TableScope(rel=rel, table=fk.column.table)
+        return parent.grow_rel(
+            rel=rel,
+            scope=scope,
+            syn=syn,
+        )
+
+    fk = parent.scope.rev_foreign_keys.get(syn.name)
+    if fk:
+        assert parent.expr is None, parent.expr
+        rel = RelRevJoin(rel=parent.rel, fk=fk, compute={})
+        scope = TableScope(rel=rel, table=fk.parent.table)
+        return parent.grow_rel(
+            rel=rel,
+            scope=scope,
+            card=Cardinality.SEQ,
+            syn=syn,
+        )
+
+    assert (  # pragma: no cover
+        False
+    ), f"Unable to lookup {syn.name} in {parent.scope.__class__.__name__}"
+
+
+@navigate.register
+def RecordScope_navigate(scope: RecordScope, syn: Nav, parent: Op):
+    if syn.name in parent.scope.fields:
+        op_field = parent.scope.op_fields[syn.name]
+        if op_field.op.sig and not isinstance(op_field.op.sig, JsonAggSig):
+            scope = parent.scope
+            while isinstance(scope, RecordScope):
+                scope = scope.parent
+            assert isinstance(scope.rel, RelWithCompute), scope
+            return parent.grow_expr(
+                expr=ExprCompute(
+                    op=op_field.op,
+                    rel=scope.rel,
+                ),
+                scope=EmptyScope(),
+                syn=syn,
+            )
+        elif parent.card == Cardinality.SEQ:
+            field = parent.scope.fields[syn.name]
+            return run_to_op(
+                field.syn,
+                parent=parent.replace(scope=parent.scope.parent),
+            )
+        else:
+            return op_field.op
+    else:
+        names = ", ".join(parent.scope.fields)  # pragma: no cover
+        assert (  # pragma: no cover
+            False
+        ), f"Unable to lookup {syn.name} in record scope, names: {names}"
+
+
+@navigate.register
+def GroupScope_navigate(scope: GroupScope, syn: Nav, parent: Op):
+    if syn.name == "_":
+        if parent.card == Cardinality.SEQ:
+            while isinstance(parent.rel, RelParent):
+                parent = parent.rel.parent
+            assert isinstance(parent.rel, RelGroup), parent
+            return Op(
+                rel=parent.rel.rel,
+                expr=None,
+                card=Cardinality.SEQ,
+                scope=parent.scope.scope,
+                syn=syn,
+            )
+
+        def wrap(op):
+            if op.card == Cardinality.SEQ:
+                op = op.aggregate(JsonAggSig())
+            else:
+                assert op.sig is not None
+            return parent.grow_expr(
+                expr=ExprCompute(
+                    op=op,
+                    rel=parent.scope.rel,
+                ),
+                scope=EmptyScope(),
+                syn=syn,
+            )
+
+        rel = RelAggregateParent()
+
+        return (
+            Op(
+                rel=rel,
+                expr=None,
+                scope=parent.scope.scope,
+                card=Cardinality.SEQ,
+                syn=syn,
+            ),
+            wrap,
+        )
+    if syn.name in parent.scope.fields:
+        expr = ExprColumn(column=sa.column(syn.name))
+        return parent.grow_expr(expr=expr, scope=EmptyScope(), syn=syn)
+    else:
+        names = ", ".join(parent.scope.fields)  # pragma: no cover
+        assert (  # pragma: no cover
+            False
+        ), f"Unable to lookup {syn.name} in record scope, names: {names}"
+
+
+@navigate.register
+def SyntheticScope_navigate(scope: SyntheticScope, syn: Nav, parent: Op):
+    transform, type = parent.scope.lookup(syn.name)
+    next_scope = type_scope(type)
+    assert transform is not None, f"Unable to lookup {syn.name}"
+    expr = ExprApply(expr=parent.expr, args=(), compile=transform)
+    return parent.grow_expr(expr=expr, scope=next_scope, syn=syn)
+
+
+@navigate.register
+def EmptyScope_navigate(scope: EmptyScope, syn: Nav, parent: Op):
+    assert (  # pragma: no cover
+        False
+    ), f"Unable to lookup {syn.name} in empty scope"
+
+
+#
+# Application of signatures (built-in combinators, functions, aggregates)
+#
 
 
 @functools.singledispatch
@@ -538,6 +568,11 @@ def AggrSig_to_op(sig: AggrSig, syn: Apply, parent: Op):
         and isinstance(parent.sig, JsonAggSig)
     )
     return parent.aggregate(sig)
+
+
+#
+# Embed literal values into query
+#
 
 
 @functools.singledispatch
