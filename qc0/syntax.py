@@ -13,8 +13,8 @@ from functools import singledispatch
 from datetime import date
 from typing import Dict, List, Union, Any
 
-from sqlalchemy.dialects import postgresql as sa_pg
 import sqlalchemy as sa
+import sqlalchemy.dialects.postgresql as sa_pg
 
 from .base import Struct
 

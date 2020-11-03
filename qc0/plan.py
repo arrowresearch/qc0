@@ -14,6 +14,7 @@ import functools
 import typing as ty
 
 import sqlalchemy as sa
+import sqlalchemy.dialects.postgresql as sa_pg
 
 from .sig import (
     Sig,
@@ -77,20 +78,7 @@ from .op import (
 )
 
 
-def make_parent(parent):
-    assert isinstance(parent, Op)
-    if isinstance(parent.rel, RelParent) and parent.expr is None:
-        return parent
-    return Op(
-        rel=RelParent(parent=parent),
-        expr=None,
-        scope=parent.scope,
-        card=Cardinality.ONE,
-        syn=None,
-    )
-
-
-def plan(syn: Syn, meta: sa.MetaData):
+def plan(syn: Syn, meta: sa.MetaData) -> Op:
     """ Produce operations from syntax."""
     parent = Op(
         rel=RelVoid(),
@@ -102,13 +90,13 @@ def plan(syn: Syn, meta: sa.MetaData):
     return build_op(syn, parent)
 
 
-def build_op(syn: Syn, parent: Op):
+def build_op(syn: Syn, parent: Op) -> Op:
     op, k = norm_to_op(syn, parent=parent)
     op = k(build_op_expr(op))
     return op
 
 
-def build_op_expr(op: Op):
+def build_op_expr(op: Op) -> Op:
     if op.expr is None:
         if isinstance(op.scope, RecordScope):
             expr = ExprRecord(fields=op.scope.op_fields)
@@ -161,21 +149,17 @@ def build_op_expr(op: Op):
     return op
 
 
-def run_to_op(syn, parent):
-    op = to_op(syn, parent)
-    if isinstance(op, tuple):
-        op, k = op
-        op = k(op)
-    assert isinstance(op, Op), type(op)
-    return op
-
-
-def norm_to_op(syn, parent):
-    res = to_op(syn, parent)
-    if isinstance(res, tuple):
-        return res
-    else:
-        return res, lambda op: op
+def make_parent(parent: Op) -> Op:
+    assert isinstance(parent, Op)
+    if isinstance(parent.rel, RelParent) and parent.expr is None:
+        return parent
+    return Op(
+        rel=RelParent(parent=parent),
+        expr=None,
+        scope=parent.scope,
+        card=Cardinality.ONE,
+        syn=None,
+    )
 
 
 #
@@ -184,9 +168,19 @@ def norm_to_op(syn, parent):
 
 
 @functools.singledispatch
-def to_op(syn: ty.Optional[Syn], parent: Op):
+def to_op(syn: ty.Optional[Syn], parent: Op) -> Op:
     """ Produce an operation out of a query."""
     raise NotImplementedError(type(syn))  # pragma: no cover
+
+
+def run_to_op(syn, parent):
+    op = to_op(syn, parent)
+    return op[1](op[0]) if isinstance(op, tuple) else op
+
+
+def norm_to_op(syn, parent):
+    res = to_op(syn, parent)
+    return res if isinstance(res, tuple) else (res, lambda op: op)
 
 
 @to_op.register
@@ -609,7 +603,5 @@ def DateLiteral_embed(_: sa.Date):
 
 
 @embed.register
-def JsonLiteral_embed(_: sa.dialects.postgresql.JSONB):
-    return lambda v: sa.cast(
-        sa.literal(json.dumps(v)), sa.dialects.postgresql.JSONB
-    )
+def JsonLiteral_embed(_: sa_pg.JSONB):
+    return lambda v: sa.cast(sa.literal(json.dumps(v)), sa_pg.JSONB)
