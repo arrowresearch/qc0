@@ -348,76 +348,96 @@ def Select_to_op(syn: Select, parent: Op):
     return parent.replace(scope=scope)
 
 
+def Apply_around_to_op(syn: Syn, parent: Op):
+    assert len(syn.args) <= 1
+    through = syn.args[0] if syn.args else None
+    if isinstance(parent.rel, RelParent):
+        syn = parent.rel.parent.syn
+    else:
+        syn = parent.syn
+    if through:
+        on = run_to_op(through, parent.replace(rel=RelAroundParent()))
+        return run_to_op(syn, on)
+    else:
+        return run_to_op(parent.syn, parent.replace(card=Cardinality.SEQ))
+
+
+def Apply_take_to_op(syn: Syn, parent: Op):
+    assert len(syn.args) == 1, "take(...): expected a single argument"
+    take = syn.args[0]
+    # TODO(andreypopp): this shouldn't be the parent really...
+    take = run_to_op(take, make_parent(parent))
+    assert parent.card >= Cardinality.SEQ
+    assert take.card == Cardinality.ONE
+    rel = RelTake(rel=parent.rel, take=ExprOp(take))
+    return parent.grow_rel(rel=rel, syn=syn)
+
+
+def Apply_first_to_op(syn: Syn, parent: Op):
+    assert len(syn.args) == 0, "first(): expected no arguments"
+    take = run_to_op(make_value(1), make_parent(parent))
+    assert parent.card >= Cardinality.SEQ
+    assert take.card >= Cardinality.ONE
+    rel = RelTake(rel=parent.rel, take=ExprOp(take))
+    return parent.grow_rel(rel=rel, syn=syn, card=Cardinality.ONE)
+
+
+def Apply_filter_to_op(syn: Syn, parent: Op):
+    assert len(syn.args) == 1, "filter(...): expected a single argument"
+    expr = syn.args[0]
+    assert (
+        parent.card >= Cardinality.SEQ
+    ), f"{syn.name}(...): expected a sequence of items"
+    expr = run_to_op(expr, make_parent(parent))
+    rel = RelFilter(rel=parent.rel, expr=ExprOp(expr))
+    return parent.grow_rel(rel=rel, syn=syn)
+
+
+def Apply_sort_to_op(syn: Syn, parent: Op):
+    assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
+    sort = []
+    for arg in syn.args:
+        arg, desc = (arg.syn, True) if isinstance(arg, Desc) else (arg, False)
+        arg = run_to_op(arg, make_parent(parent))
+        assert arg.card == Cardinality.ONE
+        sort.append(Sort(expr=ExprOp(arg), desc=desc))
+    rel = RelSort(rel=parent.rel, sort=sort)
+    return parent.grow_rel(rel=rel, syn=syn)
+
+
+def Apply_group_to_op(syn: Syn, parent: Op):
+    assert (
+        parent.card >= Cardinality.SEQ
+    ), f"{syn.name}(...): expected a sequence of items"
+    # TODO(andreypopp): fix usage of syn.args here
+    fields = {}
+    for name, f in syn.args.items():
+        op = run_to_op(f.syn, make_parent(parent))
+        if op.expr is None:
+            if isinstance(op.scope, TableScope):
+                op = op.grow_expr(ExprIdentity(table=op.scope.table))
+        fields[name] = Field(op=op, name=name)
+
+    rel = RelGroup(rel=parent.rel, fields=fields, compute={})
+    scope = GroupScope(scope=parent.scope, fields=syn.args, rel=rel)
+    card = Cardinality.SEQ if fields else Cardinality.ONE
+    return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)
+
+
 @to_op.register
 def Apply_to_op(syn: Apply, parent: Op):
     if syn.name == "around":
-        assert len(syn.args) <= 1
-        through = syn.args[0] if syn.args else None
-        if isinstance(parent.rel, RelParent):
-            syn = parent.rel.parent.syn
-            scope = parent.rel.parent.scope
-        else:
-            syn = parent.syn
-            scope = parent.scope
-        if through:
-            on = run_to_op(through, parent.replace(rel=RelAroundParent()))
-            return run_to_op(syn, on)
-        else:
-            return run_to_op(parent.syn, parent.replace(card=Cardinality.SEQ))
+        return Apply_around_to_op(syn, parent)
     elif syn.name == "take":
-        assert len(syn.args) == 1, "take(...): expected a single argument"
-        take = syn.args[0]
-        # TODO(andreypopp): this shouldn't be the parent really...
-        take = run_to_op(take, make_parent(parent))
-        assert parent.card >= Cardinality.SEQ
-        assert take.card == Cardinality.ONE
-        rel = RelTake(rel=parent.rel, take=ExprOp(take))
-        return parent.grow_rel(rel=rel, syn=syn)
+        return Apply_take_to_op(syn, parent)
     elif syn.name == "first":
-        assert len(syn.args) == 0, "first(): expected no arguments"
-        take = run_to_op(make_value(1), make_parent(parent))
-        assert parent.card >= Cardinality.SEQ
-        assert take.card >= Cardinality.ONE
-        rel = RelTake(rel=parent.rel, take=ExprOp(take))
-        return parent.grow_rel(rel=rel, syn=syn, card=Cardinality.ONE)
+        return Apply_first_to_op(syn, parent)
     elif syn.name == "filter":
-        assert len(syn.args) == 1, "filter(...): expected a single argument"
-        expr = syn.args[0]
-        assert (
-            parent.card >= Cardinality.SEQ
-        ), f"{syn.name}(...): expected a sequence of items"
-        expr = run_to_op(expr, make_parent(parent))
-        rel = RelFilter(rel=parent.rel, expr=ExprOp(expr))
-        return parent.grow_rel(rel=rel, syn=syn)
+        return Apply_filter_to_op(syn, parent)
     elif syn.name == "sort":
-        assert parent.card >= Cardinality.SEQ, f"{syn.name}(): plural req"
-        sort = []
-        for arg in syn.args:
-            arg, desc = (
-                (arg.syn, True) if isinstance(arg, Desc) else (arg, False)
-            )
-            arg = run_to_op(arg, make_parent(parent))
-            assert arg.card == Cardinality.ONE
-            sort.append(Sort(expr=ExprOp(arg), desc=desc))
-        rel = RelSort(rel=parent.rel, sort=sort)
-        return parent.grow_rel(rel=rel, syn=syn)
+        return Apply_sort_to_op(syn, parent)
     elif syn.name == "group":
-        assert (
-            parent.card >= Cardinality.SEQ
-        ), f"{syn.name}(...): expected a sequence of items"
-        # TODO(andreypopp): fix usage of syn.args here
-        fields = {}
-        for name, f in syn.args.items():
-            op = run_to_op(f.syn, make_parent(parent))
-            if op.expr is None:
-                if isinstance(op.scope, TableScope):
-                    op = op.grow_expr(ExprIdentity(table=op.scope.table))
-            fields[name] = Field(op=op, name=name)
-
-        rel = RelGroup(rel=parent.rel, fields=fields, compute={})
-        scope = GroupScope(scope=parent.scope, fields=syn.args, rel=rel)
-        card = Cardinality.SEQ if fields else Cardinality.ONE
-        return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)
+        return Apply_group_to_op(syn, parent)
     else:
 
         sig = AggrSig.get(syn.name)
