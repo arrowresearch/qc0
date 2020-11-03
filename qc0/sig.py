@@ -14,8 +14,18 @@ class Sig:
     @classmethod
     @cached
     def registry(cls):
-        candiates = cls.__subclasses__()
-        return {c.name: c for c in candiates if c.name is not NotImplemented}
+        queue = [cls]
+        found = set()
+        while queue:
+            cls = queue.pop()
+            if cls in found:
+                continue
+            found.add(cls)
+            queue = cls.__subclasses__() + queue
+
+        return {
+            cls.name: cls for cls in found if cls.name is not NotImplemented
+        }
 
     @classmethod
     def get(cls, name):
@@ -35,13 +45,40 @@ class Sig:
             )
 
 
+class CombinatorSig(Sig):
+    pass
+
+
+class AroundSig(CombinatorSig):
+    name = "around"
+
+
+class FilterSig(CombinatorSig):
+    name = "filter"
+
+
+class GroupSig(CombinatorSig):
+    name = "group"
+
+
+class TakeSig(CombinatorSig):
+    name = "take"
+
+
+class FirstSig(CombinatorSig):
+    name = "first"
+
+
+class SortSig(CombinatorSig):
+    name = "sort"
+
+
 class AggrSig(Sig):
     func = None
     unit = NotImplemented
 
-    @classmethod
-    def compile(cls, args):
-        func = getattr(sa.func, cls.func or cls.name)
+    def compile(self, args):
+        func = getattr(sa.func, self.func or self.name)
         return func(*args)
 
 
@@ -80,21 +117,18 @@ class ExistsSig(AggrSig):
     func = "bool_and"
     unit = sa.literal(False)
 
-    @classmethod
-    def compile(cls, args):
+    def compile(self, args):
         return sa.func.bool_and(True)
 
 
 class FuncSig(Sig):
-    @classmethod
-    def compile(cls, expr, args):
-        func = getattr(sa.func, cls.name)
+    def compile(self, expr, args):
+        func = getattr(sa.func, self.name)
         return func(expr, *args)
 
 
 class BinOpSig(Sig):
-    @classmethod
-    def compile(cls, a, b):
+    def compile(self, a, b):
         raise NotImplementedError()
 
 
