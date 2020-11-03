@@ -550,21 +550,30 @@ SQL::
   ... """)
 
   >>> q_volume = q.extendedprice * (1 - q.discount)
+  >>> q_revenue = q_volume.sum()
 
-  >>> got = (
-  ... q.lineitem
-  ... .filter((q.partsupp.part.type == 'ECONOMY ANODIZED STEEL') &
-  ...         (q.order.customer.nation.region.name == 'AMERICA') &
-  ...         (q.order.orderdate >= date(1995, 1, 1)) &
-  ...         (q.order.orderdate <= date(1996, 12, 31)))
-  ... .group(year=q.order.orderdate.year)
-  ... .select(
-  ...   year=q.year,
-  ...   mkt_share=
-  ...    (q._.filter(q.partsupp.supplier.nation.name == 'CANADA') >> q_volume).sum() /
-  ...    (q._ >> q_volume).sum()
+  >>> q_nation_market_share = lambda market_region, supp_nation, q_part, start, end: (
+  ...   q.lineitem
+  ...   .filter((q.partsupp.part >> q_part) &
+  ...           (q.order.customer.nation.region.name == market_region) &
+  ...           (q.order.orderdate >= start) &
+  ...           (q.order.orderdate <= end))
+  ...   .group(year=q.order.orderdate.year)
+  ...   .select(
+  ...     year=q.year,
+  ...     mkt_share=
+  ...       (q._ >> q.filter(q.partsupp.supplier.nation.name == supp_nation) >> q_revenue) /
+  ...       (q._ >> q_revenue)
+  ...   )
   ... )
-  ... .run())
+
+  >>> got = q_nation_market_share(
+  ...     market_region='AMERICA',
+  ...     supp_nation='CANADA',
+  ...     start=date(1995, 1, 1),
+  ...     end=date(1996, 12, 31),
+  ...     q_part=q.type == 'ECONOMY ANODIZED STEEL',
+  ... ).run()
 
   >>> got == expected
   True
@@ -613,12 +622,10 @@ Product Type Profit Measure Query (Q9)
 
 ::
 
-  >>> q_amount = (
-  ...   q.extendedprice * (1 - q.discount) -
-  ...   q.partsupp.supplycost * q.quantity
-  ... )
+  >>> q_volume = q.extendedprice * (1 - q.discount)
+  >>> q_amount = q_volume - q.partsupp.supplycost * q.quantity
+  >>> q_sum_profit = q_amount.sum()
 
-::
 
   >>> got = (
   ...   q.lineitem
@@ -631,7 +638,7 @@ Product Type Profit Measure Query (Q9)
   ...   .select(
   ...     nation=q.nation,
   ...     year=q.year,
-  ...     sum_profit=q._ >> q_amount >> q.sum()
+  ...     sum_profit=q._ >> q_sum_profit
   ...   )
   ... ).run()
 
@@ -690,6 +697,8 @@ Returned Item Reporting Query (Q10)
   ... limit 20
   ... """)
 
+Returned items::
+
   >>> q_returned = (
   ...   q.order
   ...   .filter((q.orderdate >= date(1993, 10, 1)) &
@@ -698,12 +707,16 @@ Returned Item Reporting Query (Q10)
   ...   .filter(q.returnflag == "R")
   ... )
 
+  >>> q_volume = q.extendedprice * (1 - q.discount)
+  >>> q_revenue = q_volume.sum()
+  >>> q_returned_revenue = q_returned >> q_revenue
+
   >>> got = (
   ...   q.customer
   ...   .select(
   ...     id=q.id,
   ...     name=q.name,
-  ...     revenue=q_returned >> (q.extendedprice * (1 - q.discount)) >> q.sum(),
+  ...     revenue=q_returned_revenue,
   ...     acctbal=q.acctbal,
   ...     nation=q.nation.name,
   ...     address=q.address,
@@ -919,18 +932,20 @@ Promotion Effect Query (Q14)
   ...   and l.shipdate < date '1995-10-01'
   ... """)
 
-::
+Volume and revenue, total and promo-related::
 
   >>> q_volume = q.extendedprice * (1 - q.discount)
+  >>> q_revenue = q_volume.sum()
+  >>> q_promo_revenue = q.filter(q.partsupp.part.type.like('PROMO%')) >> q_revenue
+
+Compute promotion effect::
 
   >>> got = (
   ...   q.lineitem
-  ...   .filter((q.shipdate >= date(1995, 9, 1)) & (q.shipdate < date(1995, 10, 1)))
-  ...   .group() >> (
-  ...     100 *
-  ...     (q._.filter(q.partsupp.part.type.like('PROMO%')) >> q_volume >> q.sum()) /
-  ...     (q._ >> q_volume >> q.sum())
-  ...   )
+  ...   .filter(q.shipdate >= date(1995, 9, 1))
+  ...   .filter(q.shipdate < date(1995, 10, 1))
+  ...   .group()
+  ...   >> (100 * (q._ >> q_promo_revenue) / (q._ >> q_revenue))
   ... ).run()
 
   >>> got == expected[0]['promo_revenue']
@@ -979,14 +994,21 @@ Top Supplier Query (Q15)
   ...   s.id;
   ... """)
 
-::
+Volume::
 
-  >>> q_total_revenue = (
-  ...   q.partsupp.lineitem
-  ...   .filter((q.shipdate >= date(1996, 1, 1)) & (q.shipdate < date(1996, 4, 1)))
-  ...   >> (q.extendedprice * (1 - q.discount))
-  ...   >> q.sum()
+  >>> q_volume = q.extendedprice * (1 - q.discount)
+
+Total supplier revenue from ``start`` till ``end`` dates::
+
+  >>> q_total_revenue = lambda start, end: (
+  ...   q.partsupp
+  ...   .lineitem
+  ...   .filter(q.shipdate >= start)
+  ...   .filter(q.shipdate < end)
+  ...   >> q_volume.sum()
   ... )
+
+Compute top supplier by total revenue for specified dates::
 
   >>> got = (
   ...   q.supplier
@@ -995,9 +1017,10 @@ Top Supplier Query (Q15)
   ...      name=q.name,
   ...      address=q.address,
   ...      phone=q.phone,
-  ...      total_revenue=q_total_revenue,
+  ...      total_revenue=q_total_revenue(start=date(1996, 1, 1), end=date(1996, 4, 1)),
   ...   )
-  ...   .filter(q.total_revenue == (q.around() >> q.total_revenue >> q.max()))
+  ...   .filter(q.total_revenue == q.around().total_revenue.max())
+  ...   .sort(q.id)
   ... ).run()
 
   >>> got == expected
