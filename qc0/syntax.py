@@ -34,17 +34,6 @@ class Nav(Syn):
     name: str
 
 
-class Select(Syn):
-    """
-    Attach multiple queries FIELD... at ROOT:
-
-        ROOT { FIELD... }
-
-    """
-
-    fields: Dict[str, Field]
-
-
 class Field(Struct):
     """
     Field is a named query (used in select):

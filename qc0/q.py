@@ -49,7 +49,7 @@ class Q:
             name: syntax.Field(syn=to_syn(syn), name=name)
             for name, syn in fields.items()
         }
-        syn = syntax.Select(fields=fields)
+        syn = syntax.Apply("select", fields)
         if self.syn is not None:
             syn = syntax.Compose(self.syn, syn)
         return self._make(syn)

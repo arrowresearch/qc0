@@ -28,6 +28,7 @@ from .sig import (
     FirstSig,
     SortSig,
     GroupSig,
+    SelectSig,
 )
 from .scope import (
     Cardinality,
@@ -44,7 +45,6 @@ from .syntax import (
     Syn,
     Nav,
     Compose,
-    Select,
     Apply,
     BinOp,
     Literal,
@@ -105,7 +105,7 @@ def build_op_expr(op: Op) -> Op:
                 expr=expr,
                 card=op.card,
                 scope=op.scope,
-                syn=Select(fields=op.scope.fields),
+                syn=Apply("select", op.scope.fields),
             )
         if isinstance(op.scope, TableScope):
             expr = ExprIdentity(table=op.scope.table)
@@ -191,28 +191,6 @@ def None_to_op(syn: type(None), parent: Op):
 @to_op.register
 def Nav_to_op(syn: Nav, parent: Op):
     return navigate(parent.scope, syn, parent)
-
-
-@to_op.register
-def Select_to_op(syn: Select, parent: Op):
-    # In general select() results in ExprRecord but we don't create it here as
-    # the next syntax might make such op useless, consider the folloing cases:
-    #
-    #     region{name: name}.name
-    #     region{name: name}{region_name: name}
-    #
-    # See build_op_expr where we create ExprRecord instead for the selects
-    # which are "final".
-    fields = {}
-    for name, f in syn.fields.items():
-        field_op = build_op(f.syn, make_parent(parent))
-        if field_op.card == Cardinality.SEQ:
-            field_op = field_op.aggregate(JsonAggSig())
-        fields[name] = Field(op=field_op, name=name)
-    scope = RecordScope(
-        parent=parent.scope, fields=syn.fields, op_fields=fields
-    )
-    return parent.replace(scope=scope)
 
 
 @to_op.register
@@ -453,6 +431,26 @@ def EmptyScope_navigate(scope: EmptyScope, syn: Nav, parent: Op):
 @functools.singledispatch
 def sig_to_op(sig: Sig, syn: Apply, parent: Op):
     raise NotImplementedError(type(sig))  # pragma: no cover
+
+
+@sig_to_op.register
+def Select_to_op(sig: SelectSig, syn: Apply, parent: Op):
+    # In general select() results in ExprRecord but we don't create it here as
+    # the next syntax might make such op useless, consider the folloing cases:
+    #
+    #     region{name: name}.name
+    #     region{name: name}{region_name: name}
+    #
+    # See build_op_expr where we create ExprRecord instead for the selects
+    # which are "final".
+    fields = {}
+    for name, f in syn.args.items():
+        field_op = build_op(f.syn, make_parent(parent))
+        if field_op.card == Cardinality.SEQ:
+            field_op = field_op.aggregate(JsonAggSig())
+        fields[name] = Field(op=field_op, name=name)
+    scope = RecordScope(parent=parent.scope, fields=syn.args, op_fields=fields)
+    return parent.replace(scope=scope)
 
 
 @sig_to_op.register

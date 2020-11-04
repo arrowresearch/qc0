@@ -45,31 +45,31 @@ class Sig:
             )
 
 
-class CombinatorSig(Sig):
-    pass
+class SelectSig(Sig):
+    name = "select"
 
 
-class AroundSig(CombinatorSig):
+class AroundSig(Sig):
     name = "around"
 
 
-class FilterSig(CombinatorSig):
+class FilterSig(Sig):
     name = "filter"
 
 
-class GroupSig(CombinatorSig):
+class GroupSig(Sig):
     name = "group"
 
 
-class TakeSig(CombinatorSig):
+class TakeSig(Sig):
     name = "take"
 
 
-class FirstSig(CombinatorSig):
+class FirstSig(Sig):
     name = "first"
 
 
-class SortSig(CombinatorSig):
+class SortSig(Sig):
     name = "sort"
 
 
