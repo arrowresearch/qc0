@@ -238,17 +238,15 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
 
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
-        sel = (
+        return From.make(
             table.select()
             .correlate(from_obj.at)
             .where(
                 table.columns[rel.fk.parent.name]
                 == from_obj.at.columns[rel.fk.column.name]
             )
+            .alias()
         )
-        if from_obj.where is not None:
-            sel = sel.where(from_obj.where)
-        from_obj = From.make(sel.alias())
     else:
         from_obj = rel_to_sql(rel.rel, from_obj=from_obj)
         from_obj, _ = from_obj.join_at(

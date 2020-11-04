@@ -637,8 +637,7 @@ def test_filter_region_by_name_then_select_ok(snapshot):
                      nation_1.region_id AS region_id,
                      nation_1.comment AS COMMENT
               FROM nation AS nation_1
-              WHERE nation_1.region_id = region_1.id
-                AND region_1.name = 'AFRICA') AS anon_2) AS anon_1 ON TRUE
+              WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON TRUE
         WHERE region_1.name = 'AFRICA'
         """
     )
