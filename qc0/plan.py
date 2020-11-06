@@ -64,7 +64,6 @@ from .op import (
     RelSort,
     RelGroup,
     RelAroundParent,
-    RelWithCompute,
     Expr,
     ExprOp,
     ExprRecord,
@@ -99,13 +98,23 @@ def build_op(syn: Syn, parent: Op) -> Op:
 def build_op_expr(op: Op) -> Op:
     if op.expr is None:
         if isinstance(op.scope, RecordScope):
-            expr = ExprRecord(fields=op.scope.op_fields)
+            syn = Apply("select", op.scope.fields)
+            fields = {}
+            for f in syn.args.values():
+                field_op = build_op(
+                    f.syn,
+                    make_parent(op.replace(scope=op.scope.parent)),
+                )
+                if field_op.card == Cardinality.SEQ:
+                    field_op = field_op.aggregate(JsonAggSig())
+                fields[f.name] = Field(op=field_op, name=f.name)
+            expr = ExprRecord(fields=fields)
             return Op(
                 rel=op.rel,
                 expr=expr,
                 card=op.card,
                 scope=op.scope,
-                syn=Apply("select", op.scope.fields),
+                syn=syn,
             )
         if isinstance(op.scope, TableScope):
             expr = ExprIdentity(table=op.scope.table)
@@ -327,28 +336,31 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
 @navigate.register
 def RecordScope_navigate(scope: RecordScope, syn: Nav, parent: Op):
     if syn.name in parent.scope.fields:
-        op_field = parent.scope.op_fields[syn.name]
-        if op_field.op.sig and not isinstance(op_field.op.sig, JsonAggSig):
-            scope = parent.scope
-            while isinstance(scope, RecordScope):
-                scope = scope.parent
-            assert isinstance(scope.rel, RelWithCompute), scope
+        field = parent.scope.fields[syn.name]
+        op = run_to_op(
+            field.syn,
+            parent=make_parent(parent.replace(scope=parent.scope.parent)),
+        )
+        if op.expr or op.sig:
             return parent.grow_expr(
-                expr=ExprCompute(
-                    op=op_field.op,
-                    rel=scope.rel,
-                ),
-                scope=EmptyScope(),
-                syn=syn,
-            )
-        elif parent.card == Cardinality.SEQ:
-            field = parent.scope.fields[syn.name]
-            return run_to_op(
-                field.syn,
-                parent=parent.replace(scope=parent.scope.parent),
+                expr=ExprOp(op),
+                scope=op.scope,
+                card=op.card * parent.card,
             )
         else:
-            return op_field.op
+            assert parent.expr is None and parent.sig is None
+
+            def rebase(rel, base):
+                if isinstance(rel, RelParent):
+                    return base
+                else:
+                    return rel.replace(rel=rebase(rel.rel, base))
+
+            return parent.grow_rel(
+                rel=rebase(op.rel, parent.rel),
+                card=op.card * parent.card,
+                scope=op.scope,
+            )
     else:
         names = ", ".join(parent.scope.fields)  # pragma: no cover
         assert (  # pragma: no cover
@@ -397,7 +409,9 @@ def GroupScope_navigate(scope: GroupScope, syn: Nav, parent: Op):
             ),
             wrap,
         )
-    if syn.name in parent.scope.fields:
+
+    if syn.name in scope.fields:
+        assert parent.expr is None
         expr = ExprColumn(column=sa.column(syn.name))
         return parent.grow_expr(expr=expr, scope=EmptyScope(), syn=syn)
     else:
@@ -443,13 +457,7 @@ def Select_to_op(sig: SelectSig, syn: Apply, parent: Op):
     #
     # See build_op_expr where we create ExprRecord instead for the selects
     # which are "final".
-    fields = {}
-    for name, f in syn.args.items():
-        field_op = build_op(f.syn, make_parent(parent))
-        if field_op.card == Cardinality.SEQ:
-            field_op = field_op.aggregate(JsonAggSig())
-        fields[name] = Field(op=field_op, name=name)
-    scope = RecordScope(parent=parent.scope, fields=syn.args, op_fields=fields)
+    scope = RecordScope(parent=parent.scope, fields=syn.args)
     return parent.replace(scope=scope)
 
 

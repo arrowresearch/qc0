@@ -83,7 +83,6 @@ class RecordScope(Scope):
 
     parent: Any
     fields: Dict[str, Field]
-    op_fields: Dict[str, Any]
 
     def __yaml__(self):
         return {"parent": self.parent, "fields": list(self.fields)}

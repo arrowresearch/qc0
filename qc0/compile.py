@@ -432,8 +432,8 @@ def ExprRecord_to_sql(op: ExprRecord, from_obj):
 
 
 @expr_to_sql.register
-def ExprColumn_to_sql(op: ExprColumn, from_obj):
-    return sa.column(op.column.name, _selectable=from_obj.at), from_obj
+def ExprColumn_to_sql(expr: ExprColumn, from_obj):
+    return sa.column(expr.column.name, _selectable=from_obj.at), from_obj
 
 
 @expr_to_sql.register

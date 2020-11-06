@@ -950,8 +950,124 @@ snapshots[
 """
 
 snapshots[
+    "test_select_backlink_nav_column_ok 1"
+] = """- AFRICA
+- AMERICA
+- AMERICA
+- AMERICA
+- MIDDLE EAST
+- AFRICA
+- EUROPE
+- EUROPE
+- ASIA
+- ASIA
+- MIDDLE EAST
+- MIDDLE EAST
+- ASIA
+- MIDDLE EAST
+- AFRICA
+- AFRICA
+- AFRICA
+- AMERICA
+- ASIA
+- EUROPE
+- MIDDLE EAST
+- ASIA
+- EUROPE
+- EUROPE
+- AMERICA
+"""
+
+snapshots[
+    "test_select_backlink_nav_ok 1"
+] = """- (AFRICA)
+- (AMERICA)
+- (AMERICA)
+- (AMERICA)
+- ("MIDDLE EAST")
+- (AFRICA)
+- (EUROPE)
+- (EUROPE)
+- (ASIA)
+- (ASIA)
+- ("MIDDLE EAST")
+- ("MIDDLE EAST")
+- (ASIA)
+- ("MIDDLE EAST")
+- (AFRICA)
+- (AFRICA)
+- (AFRICA)
+- (AMERICA)
+- (ASIA)
+- (EUROPE)
+- ("MIDDLE EAST")
+- (ASIA)
+- (EUROPE)
+- (EUROPE)
+- (AMERICA)
+"""
+
+snapshots[
     "test_select_filter_end 1"
 ] = """- n: AFRICA
+"""
+
+snapshots[
+    "test_select_link_nav_column_ok 1"
+] = """- ALGERIA
+- ARGENTINA
+- BRAZIL
+- CANADA
+- EGYPT
+- ETHIOPIA
+- FRANCE
+- GERMANY
+- INDIA
+- INDONESIA
+- IRAN
+- IRAQ
+- JAPAN
+- JORDAN
+- KENYA
+- MOROCCO
+- MOZAMBIQUE
+- PERU
+- CHINA
+- ROMANIA
+- SAUDI ARABIA
+- VIETNAM
+- RUSSIA
+- UNITED KINGDOM
+- UNITED STATES
+"""
+
+snapshots[
+    "test_select_link_nav_ok 1"
+] = """- (ALGERIA)
+- (ARGENTINA)
+- (BRAZIL)
+- (CANADA)
+- (EGYPT)
+- (ETHIOPIA)
+- (FRANCE)
+- (GERMANY)
+- (INDIA)
+- (INDONESIA)
+- (IRAN)
+- (IRAQ)
+- (JAPAN)
+- (JORDAN)
+- (KENYA)
+- (MOROCCO)
+- (MOZAMBIQUE)
+- (PERU)
+- (CHINA)
+- (ROMANIA)
+- ("SAUDI ARABIA")
+- (VIETNAM)
+- (RUSSIA)
+- ("UNITED KINGDOM")
+- ("UNITED STATES")
 """
 
 snapshots[
@@ -976,6 +1092,15 @@ snapshots[
   region: ASIA
 - c: 56
   region: ASIA
+"""
+
+snapshots[
+    "test_select_nav_agg_expr_ok 1"
+] = """- 6
+- 6
+- 6
+- 6
+- 6
 """
 
 snapshots[
