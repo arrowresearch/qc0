@@ -856,6 +856,16 @@ def test_add_lateral_columns_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+@pytest.mark.xfail
+def test_add_lateral_columns_2_ok(snapshot):
+    query = q.region.select(names=q.nation.name + q.name)
+    assert run(query, print_op=True) == n(
+        """
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
 def test_add_columns_of_relok(snapshot):
     query = q.region.name + "!"
     assert run(query, print_op=True) == n(
