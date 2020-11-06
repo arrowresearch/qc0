@@ -68,7 +68,6 @@ from .op import (
     ExprOp,
     ExprRecord,
     ExprColumn,
-    ExprCompute,
     ExprIdentity,
     ExprConst,
     ExprApply,
@@ -281,7 +280,7 @@ def navigate(scope: Scope, syn: Nav, parent: Op):
 @navigate.register
 def UnivScope_navigate(scope: UnivScope, syn: Nav, parent: Op):
     table = parent.scope.tables[syn.name]
-    rel = RelTable(table=table, compute={})
+    rel = RelTable(table=table)
     scope = TableScope(rel=rel, table=table)
     return Op(
         rel=rel,
@@ -308,7 +307,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     fk = parent.scope.foreign_keys.get(syn.name)
     if fk:
         assert parent.expr is None, parent.expr
-        rel = RelJoin(rel=parent.rel, fk=fk, compute={})
+        rel = RelJoin(rel=parent.rel, fk=fk)
         scope = TableScope(rel=rel, table=fk.column.table)
         return parent.grow_rel(
             rel=rel,
@@ -319,7 +318,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     fk = parent.scope.rev_foreign_keys.get(syn.name)
     if fk:
         assert parent.expr is None, parent.expr
-        rel = RelRevJoin(rel=parent.rel, fk=fk, compute={})
+        rel = RelRevJoin(rel=parent.rel, fk=fk)
         scope = TableScope(rel=rel, table=fk.parent.table)
         return parent.grow_rel(
             rel=rel,
@@ -388,11 +387,11 @@ def GroupScope_navigate(scope: GroupScope, syn: Nav, parent: Op):
                 op = op.aggregate(JsonAggSig())
             else:
                 assert op.sig is not None
+            idx = len(parent.scope.rel.compute)
+            name = f"compute_{idx}"
+            parent.scope.rel.compute.append(Field(name=name, op=op))
             return parent.grow_expr(
-                expr=ExprCompute(
-                    op=op,
-                    rel=parent.scope.rel,
-                ),
+                expr=ExprColumn(column=sa.column(name)),
                 scope=EmptyScope(),
                 syn=syn,
             )
@@ -537,7 +536,7 @@ def GroupSig_to_op(sig: GroupSig, syn: Syn, parent: Op):
                 op = op.grow_expr(ExprIdentity(table=op.scope.table))
         fields[name] = Field(op=op, name=name)
 
-    rel = RelGroup(rel=parent.rel, fields=fields, compute={})
+    rel = RelGroup(rel=parent.rel, fields=fields, compute=[])
     scope = GroupScope(scope=parent.scope, fields=syn.args, rel=rel)
     card = Cardinality.SEQ if fields else Cardinality.ONE
     return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)

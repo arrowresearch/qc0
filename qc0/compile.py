@@ -4,7 +4,6 @@ import sqlalchemy as sa
 from sqlalchemy.sql.selectable import Selectable, Join, Alias
 from .base import Struct
 from .op import (
-    Field,
     Op,
     Rel,
     RelVoid,
@@ -22,7 +21,6 @@ from .op import (
     ExprOp,
     ExprRecord,
     ExprColumn,
-    ExprCompute,
     ExprIdentity,
     ExprConst,
     ExprApply,
@@ -43,7 +41,6 @@ class From(Struct):
     limit: Any = None
     order: Any = None
     group_by_columns: List[str] = None
-    compute: Any = None
 
     def __post_init__(self):
         if self.group_by_columns is None:
@@ -107,9 +104,9 @@ class From(Struct):
             from_obj = from_obj.alias()
         return From(current=from_obj, at=from_obj, existing={})
 
-    def to_select(self, value, *compute):
+    def to_select(self, value):
 
-        cols = [*self.group_by_columns, *compute]
+        cols = [*self.group_by_columns]
         if value is not None:
             cols.append(value.label("value"))
         else:
@@ -127,11 +124,6 @@ class From(Struct):
 
 
 def op_to_sql(op: Op, from_obj):
-    if from_obj.compute and id(op) in from_obj.compute:
-        name = from_obj.compute[id(op)].name
-        return sa.column(name), from_obj
-    if op.expr is not None:
-        expr_collect(op.expr)
     expr = None
     inner_from_obj = rel_to_sql(op.rel, from_obj=from_obj)
     if op.expr is not None:
@@ -173,32 +165,11 @@ def RelVoid_to_sql(rel: RelVoid, from_obj):
 
 @rel_to_sql.register
 def RelTable_to_sql(rel: RelTable, from_obj):
-    if rel.compute:
-        for field in rel.compute.values():
-            if field.op.expr is not None:
-                expr_collect(field.op.expr)
-
-    from_obj = From.make(rel.table)
-
-    if rel.compute:
-        at = from_obj.at
-        columns = []
-        for field in rel.compute.values():
-            expr, from_obj = op_to_sql(field.op, from_obj.replace(at=at))
-            columns.append(expr.label(field.name))
-        from_obj = from_obj.replace(at=at)
-        from_obj = From.make(from_obj.to_select(None, *columns).alias())
-        from_obj = from_obj.replace(compute=rel.compute)
-    return from_obj
+    return From.make(rel.table)
 
 
 @rel_to_sql.register
 def RelJoin_to_sql(rel: RelJoin, from_obj):
-    if rel.compute:
-        for field in rel.compute.values():
-            if field.op.expr is not None:
-                expr_collect(field.op.expr)
-
     if isinstance(rel.rel, RelAroundParent):
         table = rel.fk.column.table
         from_obj = From.make(
@@ -217,25 +188,11 @@ def RelJoin_to_sql(rel: RelJoin, from_obj):
             navigation=not isinstance(rel.rel, RelParent),
         )
 
-    if rel.compute:
-        at = from_obj.at
-        columns = []
-        for field in rel.compute.values():
-            expr, from_obj = op_to_sql(field.op, from_obj.replace(at=at))
-            columns.append(expr.label(field.name))
-        from_obj = from_obj.replace(at=at)
-        from_obj = From.make(from_obj.to_select(None, *columns).alias())
-
     return from_obj
 
 
 @rel_to_sql.register
 def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
-    if rel.compute:
-        for field in rel.compute.values():
-            if field.op.expr is not None:
-                expr_collect(field.op.expr)
-
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
         return From.make(
@@ -254,15 +211,6 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj):
             (rel.fk.column.name, rel.fk.parent.name),
             navigation=True,
         )
-
-    if rel.compute:
-        at = from_obj.at
-        columns = []
-        for field in rel.compute.values():
-            expr, from_obj = op_to_sql(field.op, from_obj.replace(at=at))
-            columns.append(expr.label(field.name))
-        from_obj = from_obj.replace(at=at)
-        from_obj = From.make(from_obj.to_select(None, *columns).alias())
 
     return from_obj
 
@@ -283,8 +231,6 @@ def RelTake_to_sql(rel: RelTake, from_obj):
 
 @rel_to_sql.register
 def RelSort_to_sql(rel: RelSort, from_obj):
-    for sort in rel.sort:
-        expr_collect(sort.expr)
     from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
@@ -304,7 +250,6 @@ def RelSort_to_sql(rel: RelSort, from_obj):
 
 @rel_to_sql.register
 def RelFilter_to_sql(rel: RelFilter, from_obj):
-    expr_collect(rel.expr)
     from_obj = rel_to_sql(rel.rel, from_obj)
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with WHERE.
@@ -368,13 +313,10 @@ def RelGroup_to_sql(rel: RelGroup, from_obj):
         return from_obj
 
     result_columns = [from_obj.current.columns[c.name] for c in tuple(columns)]
-    for field in rel.compute.values():
+    for field in rel.compute:
         op = field.op
         assert op.sig is not None
         columns, kernel = build_kernel()
-
-        if op.expr is not None:
-            expr_collect(op.expr)
 
         value = None
         inner_from_obj = rel_to_sql(op.rel, from_obj=kernel)
@@ -437,13 +379,6 @@ def ExprColumn_to_sql(expr: ExprColumn, from_obj):
 
 
 @expr_to_sql.register
-def ExprCompute_to_sql(expr: ExprCompute, from_obj):
-    field = expr.rel.compute.get(id(expr.op))
-    assert field
-    return sa.column(field.name, _selectable=from_obj.at), from_obj
-
-
-@expr_to_sql.register
 def ExprIdentity_to_sql(op: ExprIdentity, from_obj):
     pk = []
     for col in op.table.primary_key.columns:
@@ -470,56 +405,3 @@ def ExprApply_to_sql(op: ExprApply, from_obj):
     from_obj = from_obj.replace(at=at)
     expr = op.compile(parent, args)
     return expr, from_obj
-
-
-@singledispatch
-def expr_collect(expr: Expr):
-    raise NotImplementedError(  # pragma: no cover
-        f"expr_collect({type(expr).__name__})"
-    )
-
-
-@expr_collect.register
-def ExprOp_collect(expr: ExprOp):
-    if expr.op.expr is not None:
-        expr_collect(expr.op.expr)
-
-
-@expr_collect.register
-def ExprRecord_collect(expr: ExprRecord):
-    for field in expr.fields.values():
-        if field.op.expr is not None:
-            expr_collect(field.op.expr)
-
-
-@expr_collect.register
-def ExprColumn_collect(expr: ExprColumn):
-    pass
-
-
-@expr_collect.register
-def ExprAggregate_collect(expr: ExprCompute):
-    key = id(expr.op)
-    field = expr.rel.compute.get(key)
-    if field is None:
-        idx = len(expr.rel.compute)
-        name = f"compute_{idx}"
-        expr.rel.compute[id(expr.op)] = Field(name=name, op=expr.op)
-
-
-@expr_collect.register
-def ExprIdentity_collect(expr: ExprIdentity):
-    pass
-
-
-@expr_collect.register
-def ExprConst_collect(expr: ExprConst):
-    pass
-
-
-@expr_collect.register
-def ExprApply_collect(expr: ExprApply):
-    if expr.expr:
-        expr_collect(expr.expr)
-    for arg in expr.args:
-        expr_collect(arg)
