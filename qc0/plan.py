@@ -68,6 +68,7 @@ from .op import (
     ExprOp,
     ExprRecord,
     ExprColumn,
+    ExprCompute,
     ExprIdentity,
     ExprConst,
     ExprApply,
@@ -79,7 +80,7 @@ from .op import (
 def plan(syn: Syn, meta: sa.MetaData) -> Op:
     """ Produce operations from syntax."""
     parent = Op(
-        rel=RelVoid(),
+        rel=RelVoid(compute=[]),
         expr=None,
         card=Cardinality.ONE,
         scope=UnivScope(tables=meta.tables),
@@ -210,7 +211,7 @@ def Apply_to_op(syn: Apply, parent: Op):
 
 @to_op.register
 def BinOp_to_op(syn: BinOp, parent: Op):
-    assert isinstance(parent, Op)
+    assert parent.expr is None
     sig = BinOpSig.get(syn.op)
     assert sig, f"unknown query combinator {syn.name}()"
 
@@ -228,24 +229,28 @@ def BinOp_to_op(syn: BinOp, parent: Op):
         return expr
 
     a, ak = norm_to_op(syn.a, make_parent(parent))
-    a = build_op_expr(a)
     b, bk = norm_to_op(syn.b, make_parent(parent))
-    b = build_op_expr(b)
 
     if a.card > b.card:
-        expr = make(a.expr, bk(b))
-        a = ak(a.grow_expr(expr=expr, syn=syn.a))
-        expr = ExprOp(a)
+        name = parent.rel.keep(name="b_expr", op=bk(b))
+        a, ak = norm_to_op(syn.a, parent)
+        expr = make(a.expr, ExprCompute(name=name))
+        return ak(a.grow_expr(expr=expr, scope=EmptyScope()))
     elif a.card < b.card:
-        expr = make(ak(a), b.expr)
-        b = bk(b.grow_expr(expr=expr, syn=syn.b))
-        expr = ExprOp(b)
+        name = parent.rel.keep(name="a_expr", op=ak(a))
+        b, bk = norm_to_op(syn.b, parent)
+        expr = make(ExprCompute(name=name), b.expr)
+        return bk(b.grow_expr(expr=expr, scope=EmptyScope()))
     else:
         a = ak(a)
         b = bk(b)
         expr = make(a, b)
-    card = parent.card * a.card * b.card
-    return parent.grow_expr(expr, scope=EmptyScope(), card=card, syn=syn)
+        return parent.grow_expr(
+            expr=expr,
+            scope=EmptyScope(),
+            card=parent.card * a.card * b.card,
+            syn=syn,
+        )
 
 
 @to_op.register
@@ -279,8 +284,9 @@ def navigate(scope: Scope, syn: Nav, parent: Op):
 
 @navigate.register
 def UnivScope_navigate(scope: UnivScope, syn: Nav, parent: Op):
+    assert parent.expr is None
     table = parent.scope.tables[syn.name]
-    rel = RelTable(table=table)
+    rel = RelTable(table=table, rel=parent.rel, compute=[])
     scope = TableScope(rel=rel, table=table)
     return Op(
         rel=rel,
@@ -307,7 +313,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     fk = parent.scope.foreign_keys.get(syn.name)
     if fk:
         assert parent.expr is None, parent.expr
-        rel = RelJoin(rel=parent.rel, fk=fk)
+        rel = RelJoin(rel=parent.rel, fk=fk, compute=[])
         scope = TableScope(rel=rel, table=fk.column.table)
         return parent.grow_rel(
             rel=rel,
@@ -318,7 +324,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     fk = parent.scope.rev_foreign_keys.get(syn.name)
     if fk:
         assert parent.expr is None, parent.expr
-        rel = RelRevJoin(rel=parent.rel, fk=fk)
+        rel = RelRevJoin(rel=parent.rel, fk=fk, compute=[])
         scope = TableScope(rel=rel, table=fk.parent.table)
         return parent.grow_rel(
             rel=rel,
@@ -340,26 +346,18 @@ def RecordScope_navigate(scope: RecordScope, syn: Nav, parent: Op):
             field.syn,
             parent=make_parent(parent.replace(scope=parent.scope.parent)),
         )
-        if op.expr or op.sig:
+        if op.sig:
             return parent.grow_expr(
                 expr=ExprOp(op),
                 scope=op.scope,
                 card=op.card * parent.card,
             )
         else:
-            assert parent.expr is None and parent.sig is None
-
-            def rebase(rel, base):
-                if isinstance(rel, RelParent):
-                    return base
-                else:
-                    return rel.replace(rel=rebase(rel.rel, base))
-
-            return parent.grow_rel(
-                rel=rebase(op.rel, parent.rel),
-                card=op.card * parent.card,
-                scope=op.scope,
+            op = run_to_op(
+                field.syn,
+                parent=parent.replace(scope=parent.scope.parent),
             )
+            return op.replace(card=op.card * parent.card)
     else:
         names = ", ".join(parent.scope.fields)  # pragma: no cover
         assert (  # pragma: no cover
@@ -387,11 +385,9 @@ def GroupScope_navigate(scope: GroupScope, syn: Nav, parent: Op):
                 op = op.aggregate(JsonAggSig())
             else:
                 assert op.sig is not None
-            idx = len(parent.scope.rel.compute)
-            name = f"compute_{idx}"
-            parent.scope.rel.compute.append(Field(name=name, op=op))
+            name = parent.rel.keep(name="compute", op=op)
             return parent.grow_expr(
-                expr=ExprColumn(column=sa.column(name)),
+                expr=ExprCompute(name),
                 scope=EmptyScope(),
                 syn=syn,
             )

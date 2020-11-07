@@ -60,34 +60,88 @@ class Op(Struct):
         return rep
 
 
+#
+# Relations
+#
+
+
 class Rel(Struct):
-    """ Base class for ops which query data."""
+    """ Operation which queries data from relations."""
 
 
-class RelVoid(Rel):
+class RelFunctor(Rel):
+    """ Operation which doesn't affect the shape of the result."""
+
+    def keep(self, name, op):
+        return self.rel.keep(name, op)
+
+
+class RelObject(Rel):
+    """ Operation which affects the shape of the result."""
+
+    compute: Optional[List[Field]]
+
+    def keep(self, name, op):
+        """Make ``op`` evaluate under ``name`` at the current relation."""
+        # TODO(andreypopp): we need to defer naming things till the SQL
+        # compilation pass, consider keeping track of kept computations by
+        # operation equality
+        idx = 0
+        name0 = f"{name}_{idx}"
+        names = {f.name for f in self.compute}
+        while name0 in names:
+            name0 = f"{name}_{idx}"
+            idx = idx + 1
+
+        field = Field(name=name0, op=op)
+        self.compute.append(field)
+        return name0
+
+
+class RelVoid(RelObject):
     pass
 
 
-class RelWithCompute(Rel):
-    compute: List[Field]
-
-
-class RelTable(Rel):
+class RelTable(RelObject):
+    rel: Rel
     table: Table
 
 
-class RelJoin(Rel):
+class RelJoin(RelObject):
     rel: Rel
     fk: ForeignKey
 
 
-class RelRevJoin(Rel):
+class RelRevJoin(RelObject):
     rel: Rel
     fk: ForeignKey
+
+
+class RelGroup(RelObject):
+    rel: Rel
+    fields: Dict[str, Field]
+
+
+class RelTake(RelFunctor):
+    rel: Rel
+    take: Expr
+
+
+class RelFilter(RelFunctor):
+    rel: Rel
+    expr: Expr
+
+
+class RelSort(RelFunctor):
+    rel: Rel
+    sort: List[Sort]
 
 
 class RelParent(Rel):
     parent: Op
+
+    def keep(self, name, op):
+        return self.parent.rel.keep(name, op)
 
 
 class RelAggregateParent(Rel):
@@ -98,24 +152,9 @@ class RelAroundParent(Rel):
     pass
 
 
-class RelTake(Rel):
-    rel: Rel
-    take: Expr
-
-
-class RelFilter(Rel):
-    rel: Rel
-    expr: Expr
-
-
-class RelSort(Rel):
-    rel: Rel
-    sort: List[Sort]
-
-
-class RelGroup(RelWithCompute):
-    rel: Rel
-    fields: Dict[str, Field]
+#
+# Expressions
+#
 
 
 class Expr(Struct):
@@ -134,6 +173,10 @@ class ExprColumn(Expr):
     column: ColumnClause
 
 
+class ExprCompute(Expr):
+    name: str
+
+
 class ExprIdentity(Expr):
     table: Table
 
@@ -147,6 +190,11 @@ class ExprApply(Expr):
     expr: Optional[Expr]
     args: List[Expr]
     compile: Callable[[Expr, List[Expr]], Any]
+
+
+#
+# Aux structures
+#
 
 
 class Field(Struct):
