@@ -63,6 +63,7 @@ def check(t, v, prefix):
     if t_orig is list:
         if not isinstance(v, (list, tuple)):
             errors.append(f"{prefix}expected `{t}` received `{type(v)}`")
+            return errors
         (vt,) = t.__args__
         for idx, iv in enumerate(v):
             errors = errors + check(vt, iv, f"{prefix}value at `{idx}` ")
