@@ -78,6 +78,7 @@ class From(Struct):
     limit: Any = None
     order: Any = None
     group_by_columns: List[str] = None
+    correlate: Any = None
 
     def __post_init__(self):
         if self.group_by_columns is None:
@@ -90,10 +91,13 @@ class From(Struct):
             assert not by
             from_obj = from_obj.alias()
 
-            return self.make(from_obj), from_obj
+            return self.make(from_obj, correlate=self.correlate), from_obj
 
         if self.limit is not None and navigation:
-            self = self.make(self.to_select(None).alias())
+            self = self.make(
+                self.to_select(None).alias(),
+                correlate=self.correlate,
+            )
 
         # NOTE(andreypopp): this is a hacky way to dedup existing, need to consider
         # another approach based on structural query equality...
@@ -141,11 +145,17 @@ class From(Struct):
         return self.replace(order=order)
 
     @classmethod
-    def make(cls, from_obj=None):
+    def make(cls, from_obj=None, where=None, correlate=None):
         assert not isinstance(from_obj, Join)
         if from_obj is not None and not isinstance(from_obj, Alias):
             from_obj = from_obj.alias()
-        return From(current=from_obj, at=from_obj, existing={})
+        return cls(
+            current=from_obj,
+            at=from_obj,
+            existing={},
+            where=where,
+            correlate=correlate,
+        )
 
     def to_select(self, value):
         cols = [*self.group_by_columns]
@@ -155,6 +165,8 @@ class From(Struct):
             cols.append(self.at)
 
         sel = sa.select(cols, from_obj=self.current)
+        if self.correlate is not None:
+            sel = sel.correlate(self.correlate)
 
         if self.where is not None:
             sel = sel.where(self.where)
@@ -179,7 +191,10 @@ def op_to_sql(op: Op, from_obj, ns):
         return expr, inner_from_obj
 
     if inner_from_obj.limit is not None or inner_from_obj.order is not None:
-        inner_from_obj = From.make(inner_from_obj.to_select(expr).alias())
+        inner_from_obj = From.make(
+            inner_from_obj.to_select(expr).alias(),
+            correlate=inner_from_obj.correlate,
+        )
         value = sa.func.coalesce(
             op.sig.compile([inner_from_obj.at.c.value]),
             op.sig.unit,
@@ -235,14 +250,16 @@ def RelTable_to_sql(rel: RelTable, from_obj, ns):
 def RelJoin_to_sql(rel: RelJoin, from_obj, ns):
     if isinstance(rel.rel, RelAroundParent):
         table = rel.fk.column.table
+        at = from_obj.at
         from_obj = From.make(
             table.select()
-            .correlate(from_obj.at)
+            .correlate(at)
             .where(
                 table.columns[rel.fk.column.name]
                 == from_obj.at.columns[rel.fk.parent.name]
             )
         )
+        from_obj = from_obj.replace(correlate=at)
     else:
         from_obj, ns = rel_to_sql(rel.rel, from_obj=from_obj, ns=ns)
         from_obj, _ = from_obj.join_at(
@@ -251,7 +268,14 @@ def RelJoin_to_sql(rel: RelJoin, from_obj, ns):
             navigation=not isinstance(rel.rel, RelParent),
         )
 
-    return from_obj, ns
+    next_ns = Namespace()
+    if rel.compute:
+        at = from_obj.at
+        for field in rel.compute:
+            expr, from_obj = op_to_sql(field.op, from_obj.replace(at=at), ns)
+            next_ns[field.name] = expr
+        from_obj = from_obj.replace(at=at)
+    return from_obj, ns + next_ns
 
 
 @rel_to_sql.register
@@ -259,13 +283,10 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, ns):
     if isinstance(rel.rel, RelParent):
         table = rel.fk.parent.table.alias()
         from_obj = From.make(
-            table.select()
-            .correlate(from_obj.at)
-            .where(
-                table.columns[rel.fk.parent.name]
-                == from_obj.at.columns[rel.fk.column.name]
-            )
-            .alias()
+            table,
+            where=table.columns[rel.fk.parent.name]
+            == from_obj.at.columns[rel.fk.column.name],
+            correlate=from_obj.at,
         )
     else:
         from_obj, ns = rel_to_sql(rel.rel, from_obj=from_obj, ns=ns)
@@ -275,7 +296,14 @@ def RelRevJoin_to_sql(rel: RelRevJoin, from_obj, ns):
             navigation=True,
         )
 
-    return from_obj, ns
+    next_ns = Namespace()
+    if rel.compute:
+        at = from_obj.at
+        for field in rel.compute:
+            expr, from_obj = op_to_sql(field.op, from_obj.replace(at=at), ns)
+            next_ns[field.name] = expr
+        from_obj = from_obj.replace(at=at)
+    return from_obj, ns + next_ns
 
 
 @rel_to_sql.register
@@ -284,7 +312,10 @@ def RelTake_to_sql(rel: RelTake, from_obj, ns):
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
     if from_obj.limit is not None:
-        from_obj = from_obj.make(from_obj.to_select(None).alias())
+        from_obj = From.make(
+            from_obj.to_select(None).alias(),
+            correlate=from_obj.correlate,
+        )
         ns = ns.rebase(from_obj)
     at = from_obj.at
     take, from_obj = expr_to_sql(rel.take, from_obj, ns)
@@ -299,7 +330,10 @@ def RelSort_to_sql(rel: RelSort, from_obj, ns):
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with another LIMIT.
     if from_obj.limit is not None or from_obj.order is not None:
-        from_obj = from_obj.make(from_obj.to_select(None).alias())
+        from_obj = From.make(
+            from_obj.to_select(None).alias(),
+            correlate=from_obj.correlate,
+        )
         ns = ns.rebase(from_obj)
     at = from_obj.at
     order_by = []
@@ -319,7 +353,10 @@ def RelFilter_to_sql(rel: RelFilter, from_obj, ns):
     # If we have already LIMIT set we need to produce wrap this FROM as a
     # subselect with WHERE.
     if from_obj.limit is not None:
-        from_obj = From.make(from_obj.to_select(None).alias())
+        from_obj = From.make(
+            from_obj.to_select(None).alias(),
+            correlate=from_obj.correlate,
+        )
         ns = ns.rebase(from_obj)
     at = from_obj.at
     expr, from_obj = expr_to_sql(rel.expr, from_obj, ns)

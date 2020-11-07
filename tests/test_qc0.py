@@ -902,6 +902,32 @@ def test_add_lateral_columns_nav_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
+def test_add_lateral_columns_of_revjoin_ok(snapshot):
+    query = q.region.nation.select(name=q.name + q.customer.name)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('name', anon_1.value) AS value
+        FROM region AS region_1
+        JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
+        LEFT OUTER JOIN LATERAL
+          (SELECT coalesce(jsonb_agg(nation_1.name || anon_2.name), CAST('[]' AS JSONB)) AS value
+           FROM
+             (SELECT customer_1.id AS id,
+                     customer_1.name AS name,
+                     customer_1.address AS address,
+                     customer_1.nation_id AS nation_id,
+                     customer_1.phone AS phone,
+                     customer_1.acctbal AS acctbal,
+                     customer_1.mktsegment AS mktsegment,
+                     customer_1.comment AS COMMENT
+              FROM customer AS customer_1
+              WHERE customer_1.nation_id = nation_1.id) AS anon_2) AS anon_1 ON TRUE
+        """
+    )
+    # Too big to test
+    # assert_result_matches(snapshot, query)
+
+
 def test_add_columns_of_relok(snapshot):
     query = q.region.name + "!"
     assert run(query, print_op=True) == n(
