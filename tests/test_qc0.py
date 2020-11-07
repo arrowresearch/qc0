@@ -292,15 +292,9 @@ def test_select_nav_select_select_select_nav_ok(snapshot):
     )
     assert run(query) == n(
         """
-        SELECT anon_1.name AS value
-        FROM
-          (SELECT nation_1.id AS id,
-                  nation_1.name AS name,
-                  nation_1.region_id AS region_id,
-                  nation_1.comment AS COMMENT
-           FROM nation AS nation_1,
-                region AS region_1
-           WHERE nation_1.region_id = region_1.id) AS anon_1
+        SELECT nation_1.name AS value
+        FROM region AS region_1
+        JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
         """
     )
     assert_result_matches(snapshot, query)
@@ -856,11 +850,53 @@ def test_add_lateral_columns_ok(snapshot):
     assert_result_matches(snapshot, query)
 
 
-@pytest.mark.xfail
 def test_add_lateral_columns_2_ok(snapshot):
     query = q.region.select(names=q.nation.name + q.name)
     assert run(query, print_op=True) == n(
         """
+        SELECT jsonb_build_object('names', anon_1.value) AS value
+        FROM region AS region_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT coalesce(jsonb_agg(anon_2.name || region_1.name), CAST('[]' AS JSONB)) AS value
+           FROM
+             (SELECT nation_1.id AS id,
+                     nation_1.name AS name,
+                     nation_1.region_id AS region_id,
+                     nation_1.comment AS COMMENT
+              FROM nation AS nation_1
+              WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON TRUE
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_add_lateral_columns_3_ok(snapshot):
+    query = q.region.select(names=q.name + q.nation.name)
+    assert run(query, print_op=True) == n(
+        """
+        SELECT jsonb_build_object('names', anon_1.value) AS value
+        FROM region AS region_1
+        LEFT OUTER JOIN LATERAL
+          (SELECT coalesce(jsonb_agg(region_1.name || anon_2.name), CAST('[]' AS JSONB)) AS value
+           FROM
+             (SELECT nation_1.id AS id,
+                     nation_1.name AS name,
+                     nation_1.region_id AS region_id,
+                     nation_1.comment AS COMMENT
+              FROM nation AS nation_1
+              WHERE nation_1.region_id = region_1.id) AS anon_2) AS anon_1 ON TRUE
+        """
+    )
+    assert_result_matches(snapshot, query)
+
+
+def test_add_lateral_columns_nav_ok(snapshot):
+    query = q.region.select(names=q.name + q.nation.name).names
+    assert run(query, print_op=True) == n(
+        """
+        SELECT region_1.name || nation_1.name AS value
+        FROM region AS region_1
+        JOIN nation AS nation_1 ON region_1.id = nation_1.region_id
         """
     )
     assert_result_matches(snapshot, query)
@@ -1086,7 +1122,7 @@ def test_group_nation_by_region_select_aggr_ok(snapshot):
               FROM nation AS nation_1
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_2.name AS reg,
                      count(nation_1.name) AS value
               FROM nation AS nation_1
@@ -1113,7 +1149,7 @@ def test_group_nation_by_region_select_aggr_link_ok(snapshot):
               FROM nation AS nation_1
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_2.name AS reg,
                      count(*) AS value
               FROM nation AS nation_1
@@ -1143,13 +1179,13 @@ def test_group_nation_by_region_select_aggr_col_and_link_ok(snapshot):
               FROM nation AS nation_1
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_2.name AS reg,
                      count(nation_1.name) AS value
               FROM nation AS nation_1
               JOIN region AS region_2 ON nation_1.region_id = region_2.id
               GROUP BY region_2.name) AS anon_3 ON anon_2.reg = anon_3.reg
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_3.name AS reg,
                      count(*) AS value
               FROM nation AS nation_1
@@ -1177,7 +1213,7 @@ def test_group_nation_by_region_select_aggr_filter_ok(snapshot):
               FROM nation AS nation_1
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_2.name AS reg,
                      count(*) AS value
               FROM nation AS nation_1
@@ -1202,7 +1238,7 @@ def test_group_nation_by_region_select_aggr_array_ok(snapshot):
               FROM nation AS nation_1
               JOIN region AS region_1 ON nation_1.region_id = region_1.id
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_2.name AS reg,
                      jsonb_agg(nation_1.name) AS value
               FROM nation AS nation_1
@@ -1286,14 +1322,16 @@ def test_group_binop_aggr_ok(snapshot):
         SELECT jsonb_build_object('names', anon_1.compute_0) AS value
         FROM
           (SELECT anon_2.len AS LEN,
+                  anon_2.b_expr_0 AS b_expr_0,
                   coalesce(anon_3.value, CAST('[]' AS JSONB)) AS compute_0
            FROM
-             (SELECT region_1.name AS LEN
+             (SELECT region_1.name AS LEN,
+                     '!' AS b_expr_0
               FROM region AS region_1
               GROUP BY region_1.name) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT region_1.name AS LEN,
-                     jsonb_agg(region_1.name || '!') AS value
+                     jsonb_agg(region_1.name || anon_2.b_expr_0) AS value
               FROM region AS region_1
               GROUP BY region_1.name) AS anon_3 ON anon_2.len = anon_3.len) AS anon_1
         """
@@ -1326,7 +1364,7 @@ def test_nested_group(snapshot):
               GROUP BY SUBSTRING(nation_1.name
                                  FROM 1
                                  FOR 1)) AS anon_2
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT SUBSTRING(nation_1.name
                                FROM 1
                                FOR 1) AS r1,
@@ -1335,7 +1373,7 @@ def test_nested_group(snapshot):
               GROUP BY SUBSTRING(nation_1.name
                                  FROM 1
                                  FOR 1)) AS anon_3 ON anon_2.r1 = anon_3.r1
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT anon_5.r1 AS r1,
                      jsonb_agg(jsonb_build_object('r2', anon_5.r2, 'names2', anon_5.compute_0)) AS value
               FROM
@@ -1356,7 +1394,7 @@ def test_nested_group(snapshot):
                              SUBSTRING(nation_1.name
                                        FROM 1
                                        FOR 2)) AS anon_6
-                 LEFT OUTER JOIN
+                 LEFT OUTER JOIN LATERAL
                    (SELECT SUBSTRING(nation_1.name
                                      FROM 1
                                      FOR 1) AS r1,
@@ -1730,10 +1768,10 @@ def test_group_by_none_ok(snapshot):
              (SELECT
               FROM
                 (SELECT 1 AS anon_6) AS anon_5) AS anon_4
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT count(*) AS value
               FROM region AS region_1) AS anon_2 ON TRUE
-           LEFT OUTER JOIN
+           LEFT OUTER JOIN LATERAL
              (SELECT count(*) AS value
               FROM region AS region_1
               JOIN nation AS nation_1 ON region_1.id = nation_1.region_id) AS anon_3 ON TRUE) AS anon_1
