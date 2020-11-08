@@ -1737,3 +1737,16 @@ def test_select_nav_agg_expr_ok(snapshot):
         """
     )
     assert_result_matches(snapshot, query)
+
+
+@pytest.mark.xfail
+def test_add_region_nation_customer(snapshot):
+    # TODO(andreypopp): this fails because of naming clash of ExprCompute
+    # expressions.
+    query = q.region.select(
+        n=q.name + (q.nation >> (q.name + q.customer.name))
+    ).print_sql()
+    assert run(query, print_op=True) == n(
+        """
+        """
+    )
