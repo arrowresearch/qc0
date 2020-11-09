@@ -484,7 +484,7 @@ SQL::
   ...    (q.shipdate <= date(1996, 12, 31))
   ...  )
   ...  .group(
-  ...     year=q.shipdate.year,
+  ...     year=q.shipdate.year(),
   ...     cust_nation=q.order.customer.nation.name,
   ...     supp_nation=q.partsupp.supplier.nation.name,
   ...  )
@@ -558,7 +558,7 @@ SQL::
   ...           (q.order.customer.nation.region.name == market_region) &
   ...           (q.order.orderdate >= start) &
   ...           (q.order.orderdate <= end))
-  ...   .group(year=q.order.orderdate.year)
+  ...   .group(year=q.order.orderdate.year())
   ...   .select(
   ...     year=q.year,
   ...     mkt_share=
@@ -632,7 +632,7 @@ Product Type Profit Measure Query (Q9)
   ...   .filter(q.partsupp.part.name.ilike('%green%'))
   ...   .group(
   ...     nation=q.partsupp.supplier.nation.name,
-  ...     year=q.order.orderdate.year,
+  ...     year=q.order.orderdate.year(),
   ...   )
   ...   .sort(q.nation, q.year.desc())
   ...   .select(

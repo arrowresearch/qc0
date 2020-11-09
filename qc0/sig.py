@@ -252,3 +252,9 @@ class NotSig(FuncSig):
     name = "__not__"
     args = ()
     compile = classmethod(lambda cls, expr, args: sa.not_(expr))
+
+
+class YearSig(FuncSig):
+    name = "year"
+    args = ()
+    compile = classmethod(lambda cls, expr, args: sa.extract("year", expr))

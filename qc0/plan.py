@@ -38,8 +38,6 @@ from .scope import (
     TableScope,
     RecordScope,
     GroupScope,
-    SyntheticScope,
-    type_scope,
 )
 from .syntax import (
     Syn,
@@ -257,7 +255,7 @@ def BinOp_to_op(syn: BinOp, parent: Op):
 def Literal_to_op(syn: Literal, parent: Op):
     assert isinstance(parent, Op), parent
     expr = ExprConst(value=syn.value, embed=embed(syn.type))
-    return parent.grow_expr(expr, scope=type_scope(syn.type), syn=syn)
+    return parent.grow_expr(expr, scope=EmptyScope(), syn=syn)
 
 
 @to_op.register
@@ -303,9 +301,8 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
 
     if syn.name in table.columns:
         column = table.columns[syn.name]
-        next_scope = type_scope(column.type)
         return parent.grow_expr(
-            scope=next_scope,
+            scope=EmptyScope(),
             expr=ExprColumn(column=column),
             syn=syn,
         )
@@ -414,15 +411,6 @@ def GroupScope_navigate(scope: GroupScope, syn: Nav, parent: Op):
         assert (  # pragma: no cover
             False
         ), f"Unable to lookup {syn.name} in record scope, names: {names}"
-
-
-@navigate.register
-def SyntheticScope_navigate(scope: SyntheticScope, syn: Nav, parent: Op):
-    transform, type = parent.scope.lookup(syn.name)
-    next_scope = type_scope(type)
-    assert transform is not None, f"Unable to lookup {syn.name}"
-    expr = ExprApply(expr=parent.expr, args=(), compile=transform)
-    return parent.grow_expr(expr=expr, scope=next_scope, syn=syn)
 
 
 @navigate.register
