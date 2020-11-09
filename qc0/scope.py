@@ -54,7 +54,6 @@ class TableScope(Scope):
     fk relationships.
     """
 
-    rel: Any
     table: sa.Table
 
     @property
@@ -95,7 +94,6 @@ class GroupScope(Scope):
 
     scope: Scope
     fields: Dict[str, Field]
-    rel: Any
 
     def __yaml__(self):
         return {"scope": self.scope, "fields": list(self.fields)}

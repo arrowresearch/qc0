@@ -287,7 +287,7 @@ def UnivScope_navigate(scope: UnivScope, syn: Nav, parent: Op):
     assert parent.expr is None
     table = parent.scope.tables[syn.name]
     rel = RelTable(table=table, rel=parent.rel, compute=[])
-    scope = TableScope(rel=rel, table=table)
+    scope = TableScope(table=table)
     return Op(
         rel=rel,
         expr=None,
@@ -314,7 +314,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     if fk:
         assert parent.expr is None, parent.expr
         rel = RelJoin(rel=parent.rel, fk=fk, compute=[])
-        scope = TableScope(rel=rel, table=fk.column.table)
+        scope = TableScope(table=fk.column.table)
         return parent.grow_rel(
             rel=rel,
             scope=scope,
@@ -325,7 +325,7 @@ def TableScope_navigate(scope: TableScope, syn: Nav, parent: Op):
     if fk:
         assert parent.expr is None, parent.expr
         rel = RelRevJoin(rel=parent.rel, fk=fk, compute=[])
-        scope = TableScope(rel=rel, table=fk.parent.table)
+        scope = TableScope(table=fk.parent.table)
         return parent.grow_rel(
             rel=rel,
             scope=scope,
@@ -530,7 +530,7 @@ def GroupSig_to_op(sig: GroupSig, syn: Syn, parent: Op):
         fields[name] = Field(op=op, name=name)
 
     rel = RelGroup(rel=parent.rel, fields=fields, compute=[])
-    scope = GroupScope(scope=parent.scope, fields=syn.args, rel=rel)
+    scope = GroupScope(scope=parent.scope, fields=syn.args)
     card = Cardinality.SEQ if fields else Cardinality.ONE
     return parent.grow_rel(rel=rel, syn=syn, card=card, scope=scope)
 
