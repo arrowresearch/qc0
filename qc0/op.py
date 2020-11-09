@@ -124,12 +124,12 @@ class RelGroup(RelObject):
 
 class RelTake(RelFunctor):
     rel: Rel
-    take: Expr
+    take: Op
 
 
 class RelFilter(RelFunctor):
     rel: Rel
-    expr: Expr
+    cond: Op
 
 
 class RelSort(RelFunctor):
@@ -203,5 +203,5 @@ class Field(Struct):
 
 
 class Sort(Struct):
-    expr: Expr
+    op: Op
     desc: bool

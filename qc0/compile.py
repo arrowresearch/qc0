@@ -318,7 +318,7 @@ def RelTake_to_sql(rel: RelTake, from_obj, ns):
         )
         ns = ns.rebase(from_obj)
     at = from_obj.at
-    take, from_obj = expr_to_sql(rel.take, from_obj, ns)
+    take, from_obj = op_to_sql(rel.take, from_obj, ns)
     from_obj = from_obj.replace(at=at)
     from_obj = from_obj.add_limit(take)
     return from_obj, ns
@@ -338,7 +338,7 @@ def RelSort_to_sql(rel: RelSort, from_obj, ns):
     at = from_obj.at
     order_by = []
     for sort in rel.sort:
-        col, from_obj = expr_to_sql(sort.expr, from_obj.replace(at=at), ns)
+        col, from_obj = op_to_sql(sort.op, from_obj.replace(at=at), ns)
         if sort.desc:
             col = col.desc()
         order_by.append(col)
@@ -359,9 +359,9 @@ def RelFilter_to_sql(rel: RelFilter, from_obj, ns):
         )
         ns = ns.rebase(from_obj)
     at = from_obj.at
-    expr, from_obj = expr_to_sql(rel.expr, from_obj, ns)
+    cond, from_obj = op_to_sql(rel.cond, from_obj, ns)
     from_obj = from_obj.replace(at=at)
-    from_obj = from_obj.add_where(expr)
+    from_obj = from_obj.add_where(cond)
     return from_obj, ns
 
 

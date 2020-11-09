@@ -479,7 +479,7 @@ def TakeSig_to_op(sig: TakeSig, syn: Syn, parent: Op):
     take = run_to_op(take, make_parent(parent))
     assert parent.card >= Cardinality.SEQ
     assert take.card == Cardinality.ONE
-    rel = RelTake(rel=parent.rel, take=ExprOp(take))
+    rel = RelTake(rel=parent.rel, take=take)
     return parent.grow_rel(rel=rel, syn=syn)
 
 
@@ -489,19 +489,16 @@ def FirstSig_to_op(sig: FirstSig, syn: Syn, parent: Op):
     take = run_to_op(make_value(1), make_parent(parent))
     assert parent.card >= Cardinality.SEQ
     assert take.card >= Cardinality.ONE
-    rel = RelTake(rel=parent.rel, take=ExprOp(take))
+    rel = RelTake(rel=parent.rel, take=take)
     return parent.grow_rel(rel=rel, syn=syn, card=Cardinality.ONE)
 
 
 @sig_to_op.register
 def FilterSig_to_op(sig: FilterSig, syn: Syn, parent: Op):
     assert len(syn.args) == 1, "filter(...): expected a single argument"
-    expr = syn.args[0]
-    assert (
-        parent.card >= Cardinality.SEQ
-    ), f"{syn.name}(...): expected a sequence of items"
-    expr = run_to_op(expr, make_parent(parent))
-    rel = RelFilter(rel=parent.rel, expr=ExprOp(expr))
+    assert parent.card >= Cardinality.SEQ, "filter(...): expected plural query"
+    cond = run_to_op(syn.args[0], make_parent(parent))
+    rel = RelFilter(rel=parent.rel, cond=cond)
     return parent.grow_rel(rel=rel, syn=syn)
 
 
@@ -513,7 +510,7 @@ def SortSig_to_op(sig: SortSig, syn: Syn, parent: Op):
         arg, desc = (arg.syn, True) if isinstance(arg, Desc) else (arg, False)
         arg = run_to_op(arg, make_parent(parent))
         assert arg.card == Cardinality.ONE
-        sort.append(Sort(expr=ExprOp(arg), desc=desc))
+        sort.append(Sort(op=arg, desc=desc))
     rel = RelSort(rel=parent.rel, sort=sort)
     return parent.grow_rel(rel=rel, syn=syn)
 
